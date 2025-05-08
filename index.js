@@ -19,7 +19,7 @@ const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/
 const IMAGE_MODEL = 'gpt-4.1-mini';  // Model used for image analysis and article extraction
 const ANALYSIS_MODEL = 'gpt-4.1';    // Model used for in-depth article/comment analysis
 const SUMMARY_MODEL = 'gpt-4.1'; // Model used for quick one-word summaries
-const DEFAULT_SUBREDDIT = 'artificial';
+const DEFAULT_SUBREDDIT = 'news';
 
 // Prompt Templates
 const ARTICLE_EXTRACTION_PROMPT_TEMPLATE = `Analyze this webpage screenshot and extract the main article content. 
@@ -57,13 +57,15 @@ Reddit Link: {postLink}
 {formattedComments}
 
 ## Analysis Task
-Please analyze both the article and the comments to provide insights on:
-1. Main points of the article
+Please analyze both the post content (which may be an image, text, or an external article) and the comments to provide insights on:
+1. Main points of the post/content
 2. Key themes in the comments
-3. Overall sentiment of commenters toward the article topic
+3. Overall sentiment of commenters toward the post topic
 4. Any notable disagreements or controversies in the comments
 
-Start your analysis with a bold heading that includes the article title.
+If the post contains an image, describe what's in the image and how it relates to the comments.
+
+Start your analysis with a bold heading that includes the post title.
 Format your analysis in clear sections with descriptive headers.
 `;
 
@@ -245,17 +247,18 @@ async function extractComments(page) {
 }
 
 /**
- * Analyze article text and comments using GPT-4.1
+ * Analyze post content (image/text/article) and comments using GPT-4.1
  * @param {string} articleText - The extracted article text
  * @param {Array} comments - Array of comment objects
  * @param {string} postTitle - Title of the Reddit post
  * @param {string} postLink - Link to the Reddit post
  * @param {string} externalLink - External link URL (for link posts)
+ * @param {string} postScreenshotPath - Path to the post screenshot
  * @returns {Promise<string>} Analysis text
  */
-async function analyzeArticleAndComments(articleText, comments, postTitle, postLink, externalLink = '') {
+async function analyzeArticleAndComments(articleText, comments, postTitle, postLink, externalLink = '', postScreenshotPath = '') {
   try {
-    console.log(`Analyzing article and ${comments.length} comments with ${ANALYSIS_MODEL}...`);
+    console.log(`Analyzing post content and ${comments.length} comments with ${ANALYSIS_MODEL}...`);
 
     // Format comments for inclusion in the prompt
     let formattedComments = '';
@@ -281,25 +284,66 @@ async function analyzeArticleAndComments(articleText, comments, postTitle, postL
       .replace('{articleText}', articleTextContent)
       .replace('{formattedComments}', formattedComments);
 
+    // Prepare content array for OpenAI request
+    const content = [
+      { type: "input_text", text: prompt }
+    ];
+
+    // Process and add post screenshot if available
+    if (postScreenshotPath && fs.existsSync(postScreenshotPath)) {
+      console.log(`Processing post screenshot for analysis: ${postScreenshotPath}`);
+      try {
+        // Read the image
+        const imageBuffer = fs.readFileSync(postScreenshotPath);
+        
+        // Resize to 768px width and take top 2000px
+        const processedBuffer = await sharp(imageBuffer)
+          .resize({
+            width: 768,
+            height: null, // Maintain aspect ratio
+            fit: 'inside',
+            withoutEnlargement: false
+          })
+          .extract({
+            left: 0,
+            top: 0,
+            width: 768,
+            height: Math.min(2000, (await sharp(imageBuffer).metadata()).height)
+          })
+          .toBuffer();
+        
+        // Convert to base64
+        const base64Image = processedBuffer.toString('base64');
+        
+        // Add to content array
+        content.push({
+          type: "input_image",
+          image_url: `data:image/png;base64,${base64Image}`
+        });
+        
+        console.log('Post screenshot processed and added to analysis');
+      } catch (imgError) {
+        console.error(`Error processing post screenshot: ${imgError.message}`);
+      }
+    }
+
     // Send to GPT-4.1 for analysis
     console.log('Sending to OpenAI for analysis...');
     const response = await openai.responses.create({
       model: ANALYSIS_MODEL,
       input: [{
         role: "user",
-        content: [
-          { type: "input_text", text: prompt }
-        ]
+        content: content
       }]
     });
 
     // Return the analysis text
     const analysisText = response.output_text || 'No analysis generated';
-    console.log(`Successfully generated ${analysisText.length} characters of article and comment analysis`);
+    console.log(`Successfully generated ${analysisText.length} characters of post content and comment analysis`);
     return analysisText;
   } catch (error) {
-    console.error(`Error analyzing article and comments: ${error.message}`);
-    return `Error analyzing article and comments: ${error.message}`;
+    console.error(`Error analyzing post content and comments: ${error.message}`);
+    return `Error analyzing post content and comments: ${error.message}`;
   }
 }
 
@@ -539,13 +583,17 @@ async function main() {
           );
           console.log(`${commentsData.length} comments saved to ${postDir}/comments.json`);
 
+          // Variable to hold article text - may be populated from external link if available
+          let articleText = '';
+          let externalDir = '';
+
           // If this is a link post, follow the external link and take a screenshot
           if (post.isLinkPost && post.externalLink) {
             console.log(`This is a link post. Following external link: ${post.externalLink}`);
 
             try {
               // Create an external content directory
-              const externalDir = path.join(postDir, 'external');
+              externalDir = path.join(postDir, 'external');
               fs.mkdirSync(externalDir, { recursive: true });
 
               // Create a new page for the external link
@@ -556,7 +604,7 @@ async function main() {
               await externalPage.goto(post.externalLink, {
                 // Wait until both network is idle AND page is fully loaded
                 waitUntil: ['networkidle2', 'load', 'domcontentloaded'],
-                timeout: 60000  // Increase timeout to 60 seconds for slower sites
+                timeout: 30000  // Increase timeout to 60 seconds for slower sites
               });
 
               // Scroll the external page to load more content
@@ -583,30 +631,48 @@ async function main() {
 
               const extractionPrompt = ARTICLE_EXTRACTION_PROMPT_TEMPLATE.replace('{externalLink}', post.externalLink);
 
-              const articleText = await analyzeImage(externalScreenshotPath, extractionPrompt);
+              articleText = await analyzeImage(externalScreenshotPath, extractionPrompt);
 
               // Save extracted article text
               fs.writeFileSync(path.join(externalDir, 'article.txt'), articleText);
               console.log(`Article text analysis saved to ${externalDir}/article.txt`);
 
-              // Analyze the article text and comments with GPT-4.1
-              const analysis = await analyzeArticleAndComments(
-                articleText,
-                commentsData,
-                post.title,
-                post.link,
-                post.externalLink
-              );
-
-              // Save the combined analysis
-              fs.writeFileSync(path.join(postDir, 'analysis.txt'), analysis);
-              console.log(`Combined analysis saved to ${postDir}/analysis.txt`);
-
               // Close the external page
               await externalPage.close();
             } catch (error) {
               console.error(`Error accessing external link for post ${i + 1}: ${error.message}`);
+              // We'll continue with analysis even if external link fails
+              articleText = 'Unable to access external link: ' + error.message;
+              
+              // Create external directory if it doesn't exist yet
+              if (!externalDir) {
+                externalDir = path.join(postDir, 'external');
+                fs.mkdirSync(externalDir, { recursive: true });
+              }
+              
+              // Save error as article text
+              fs.writeFileSync(path.join(externalDir, 'article.txt'), articleText);
             }
+          }
+
+          // Always run analysis regardless of whether external link succeeded
+          try {
+            // Analyze the post content (with screenshot), article text, and comments with GPT-4.1
+            console.log('Running analysis on post and comments...');
+            const analysis = await analyzeArticleAndComments(
+              articleText,
+              commentsData,
+              post.title,
+              post.link,
+              post.isLinkPost ? post.externalLink : '',
+              screenshotPath // Pass the post screenshot path
+            );
+
+            // Save the combined analysis
+            fs.writeFileSync(path.join(postDir, 'analysis.txt'), analysis);
+            console.log(`Combined analysis saved to ${postDir}/analysis.txt`);
+          } catch (analysisError) {
+            console.error(`Error analyzing post ${i + 1}: ${analysisError.message}`);
           }
 
           // Close the post page
