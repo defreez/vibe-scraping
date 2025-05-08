@@ -1,0 +1,15 @@
+{
+  "name": "vibe-scraping",
+  "version": "1.0.0",
+  "description": "A tool for scraping Reddit and extracting article text using OpenAI Vision",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "openai": "^4.98.0",
+    "puppeteer": "^24.8.2",
+    "sharp": "^0.32.6"
+  }
+}

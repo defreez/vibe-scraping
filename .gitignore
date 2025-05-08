@@ -1,7 +1,3 @@
 node_modules/
-redditScraper.js
-*.png
-*.html
-*.json
 output/
 .DS_Store/
