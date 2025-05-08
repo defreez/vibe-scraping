@@ -19,7 +19,8 @@ const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/
 const IMAGE_MODEL = 'gpt-4.1-mini';  // Model used for image analysis and article extraction
 const ANALYSIS_MODEL = 'gpt-4.1';    // Model used for in-depth article/comment analysis
 const SUMMARY_MODEL = 'gpt-4.1'; // Model used for quick one-word summaries
-const DEFAULT_SUBREDDIT = 'news';
+const DEFAULT_SUBREDDITS = ['news', 'ashland'];
+const POSTS_PER_SUBREDDIT = 10;  // Number of posts to scrape per subreddit (can be modified)
 
 // Prompt Templates
 const ARTICLE_EXTRACTION_PROMPT_TEMPLATE = `Analyze this webpage screenshot and extract the main article content. 
@@ -416,14 +417,16 @@ async function autoScroll(page) {
   await new Promise(resolve => setTimeout(resolve, 3000));
 }
 
-async function main() {
-  // Get subreddit from command line or use default
-  const subreddit = process.argv[2] || DEFAULT_SUBREDDIT;
-
-  console.log(`Launching browser to scrape r/${subreddit}...`);
-  // Launch the browser
-  const browser = await puppeteer.launch({ headless: "new" });
-
+/**
+ * Process a single subreddit, scraping top posts and their content
+ * @param {Browser} browser - Puppeteer browser instance
+ * @param {string} subreddit - Subreddit name to scrape
+ * @param {string} baseOutputDir - Base output directory for this run
+ * @returns {Promise<void>}
+ */
+async function processSubreddit(browser, subreddit, baseOutputDir) {
+  console.log(`\n========== Processing r/${subreddit} ==========`);
+  
   try {
     // Create a new page
     const page = await browser.newPage();
@@ -442,17 +445,6 @@ async function main() {
     console.log('Auto-scrolling to load more posts...');
     await autoScroll(page);
     console.log('Auto-scrolling completed');
-
-    // Create a run ID (YYYYMMDD_HHMM format)
-    const now = new Date();
-    const runId = now.toISOString()
-      .replace(/T/, '_')
-      .replace(/\..+/, '')
-      .replace(/[-:]/g, '');
-
-    // Create base output directory structure
-    const baseOutputDir = path.join('output', runId);
-    fs.mkdirSync(baseOutputDir, { recursive: true });
 
     // Create subreddit directory
     const subredditDir = path.join(baseOutputDir, subreddit);
@@ -504,13 +496,16 @@ async function main() {
       });
     });
 
-    // Limit to first 5 posts to avoid taking too long
-    const postsToVisit = postsData.slice(0, 5);
+    // Limit to configured number of posts per subreddit
+    const postsToVisit = postsData.slice(0, POSTS_PER_SUBREDDIT);
 
     // Save the extracted post data to JSON file
     fs.writeFileSync(path.join(subredditDir, 'posts.json'), JSON.stringify(postsData, null, 2));
     console.log(`Found ${postsData.length} posts. Data saved to ${subredditDir}/posts.json`);
     console.log(`Will visit first ${postsToVisit.length} posts.`);
+
+    // Close the subreddit main page to free up resources
+    await page.close();
 
     // Visit each post and take screenshots
     for (let i = 0; i < postsToVisit.length; i++) {
@@ -604,7 +599,7 @@ async function main() {
               await externalPage.goto(post.externalLink, {
                 // Wait until both network is idle AND page is fully loaded
                 waitUntil: ['networkidle2', 'load', 'domcontentloaded'],
-                timeout: 30000  // Increase timeout to 60 seconds for slower sites
+                timeout: 30000  // Timeout for slower sites
               });
 
               // Scroll the external page to load more content
@@ -689,9 +684,50 @@ async function main() {
       }
     }
 
-    console.log(`\nAll posts visited and content saved successfully in output/${runId}/${subreddit}/!`);
+    console.log(`\nCompleted processing r/${subreddit}. All content saved to ${subredditDir}`);
   } catch (error) {
-    console.error('An error occurred:', error);
+    console.error(`Error processing subreddit r/${subreddit}:`, error);
+  }
+}
+
+async function main() {
+  // Get subreddits from command line or use defaults
+  let subreddits = DEFAULT_SUBREDDITS;
+  
+  // If command line arguments are provided, use them as subreddits
+  if (process.argv.length > 2) {
+    subreddits = process.argv.slice(2);
+  }
+  
+  console.log(`Preparing to scrape ${subreddits.length} subreddits: r/${subreddits.join(', r/')}`);
+  
+  // Create a run ID (YYYYMMDD_HHMM format)
+  const now = new Date();
+  const runId = now.toISOString()
+    .replace(/T/, '_')
+    .replace(/\..+/, '')
+    .replace(/[-:]/g, '');
+
+  // Create base output directory structure for this run
+  const baseOutputDir = path.join('output', runId);
+  fs.mkdirSync(baseOutputDir, { recursive: true });
+  
+  // Launch the browser (shared across all subreddits)
+  console.log('Launching browser...');
+  const browser = await puppeteer.launch({ headless: "new" });
+
+  try {
+    // Process each subreddit
+    for (const subreddit of subreddits) {
+      await processSubreddit(browser, subreddit, baseOutputDir);
+    }
+    
+    console.log(`\n====================================`);
+    console.log(`All subreddits processed successfully!`);
+    console.log(`Output saved to: output/${runId}/`);
+    console.log(`====================================`);
+  } catch (error) {
+    console.error('An error occurred during processing:', error);
   } finally {
     // Close the browser
     await browser.close();

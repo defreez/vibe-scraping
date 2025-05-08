@@ -4,8 +4,8 @@
 
 Welcome to Vibe Scraping, a quick-and-dirty tool thrown together while my students were taking their midterm.
 
-1. Grabs a subreddit of your choice 
-2. Pulls the top 5 posts
+1. Grabs subreddits of your choice 
+2. Pulls the top 10 posts from each
 3. Extracts posts, comments, and screenshots of external links.
 4. Uses GPT-4.1 to extract the text and analyze comments in conjunction with article.
 
@@ -37,11 +37,14 @@ npm install
 # Set your API key (don't commit this to GitHub unless you like surprise AWS bills)
 export OPENAI_API_KEY=your_actual_key_here
 
-# Run with default subreddit (r/news)
+# Run with default subreddits (r/news, r/ashland)
 node index.js
 
-# Or specify a subreddit (e.g., r/programming)
+# Or specify one or more subreddits
 node index.js programming
+
+# Scrape multiple specific subreddits
+node index.js worldnews politics technology
 ```
 
 ## 🗂️ Output Structure
