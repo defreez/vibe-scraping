@@ -25,10 +25,18 @@ const DEFAULT_SUBREDDIT = 'artificial';
 const ARTICLE_EXTRACTION_PROMPT_TEMPLATE = `Analyze this webpage screenshot and extract the main article content. 
 Ignore navigation elements, ads, and other non-content sections.
 Format the output as clean text with paragraphs preserved.
+
+If it appears that this is not an article but just a single image, then analyze the image
+and return a description of what is in the image suitable for a blind person.
+
+Translate to English if necessary.
+
 URL: {externalLink}`;
 
 const PHRASE_SUMMARY_TEMPLATE = `Summarize the following post title with a descriptive phrase of 1-3 words that captures its essence.
 Return the phrase with words separated by underscores (like_this_example) with no punctuation or additional text.
+
+Translate to English if necessary.
 
 Title: {postTitle}
 
@@ -54,7 +62,6 @@ Please analyze both the article and the comments to provide insights on:
 2. Key themes in the comments
 3. Overall sentiment of commenters toward the article topic
 4. Any notable disagreements or controversies in the comments
-5. Any obvious signs of propaganda, disinformation, NLP or other cognitive attacks?
 
 Start your analysis with a bold heading that includes the article title.
 Format your analysis in clear sections with descriptive headers.
