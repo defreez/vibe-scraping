@@ -37,14 +37,31 @@ npm install
 # Set your API key (don't commit this to GitHub unless you like surprise AWS bills)
 export OPENAI_API_KEY=your_actual_key_here
 
-# Run with default subreddits (r/news, r/ashland)
-node index.js
+# Recipient name is required for personalized newsletters
+node index.js --recipient "Alice Smith"
 
-# Or specify one or more subreddits
-node index.js programming
+# Use default subreddits (r/news, r/ashland) with recipient name
+node index.js --recipient "Bob Jones"
+
+# Specify one or more subreddits with recipient name
+node index.js --recipient "Charlie Brown" programming
 
 # Scrape multiple specific subreddits
-node index.js worldnews politics technology
+node index.js --recipient "Dana Smith" worldnews politics technology
+```
+
+## 📊 Additional Analysis
+
+The script automatically generates hierarchical analyses:
+1. Individual post analysis (analysis.md in each post directory)
+2. Subreddit-level analysis (subreddit_analysis.md in each subreddit directory)
+3. Combined newsletter across all subreddits (security_newsletter_all.md in the root output directory)
+
+You can also run additional analysis on existing output directories:
+
+```bash
+# Process additional analyses on an existing run directory (recipient name is required)
+node analyze.js ./output/TIMESTAMP_DIRECTORY --recipient "Bob Jones"
 ```
 
 ## 🗂️ Output Structure
@@ -52,15 +69,18 @@ node index.js worldnews politics technology
 ```
 output/
   └── TIMESTAMP/                    # Timestamp because version control is for the weak
+      ├── combined_subreddits_newsletter.md # Combined newsletter for all subreddits
       └── SUBREDDIT/                # Whatever subreddit you're analyzing
           ├── screenshots/          # Pictures, because reading is hard
           ├── page.html             # Raw HTML in case you need it (you won't)
           ├── posts.json            # Data for all scraped posts
+          ├── subreddit_analysis.md # Comprehensive analysis of all posts in the subreddit
+          ├── SUBREDDIT_newsletter.md # Single subreddit newsletter
           └── post_1_keyword_phrase/# Each post gets its own home with an AI-generated name
               ├── metadata.json     # Post details that might be useful someday (narrator: they weren't)
               ├── post.html         # More HTML you'll never look at
               ├── comments.json     # What people are actually fighting about
-              ├── analysis.txt      # What GPT-4.1 thinks people are fighting about
+              ├── analysis.md       # What GPT-4.1 thinks about this post (in markdown!)
               ├── screenshots/      # More pictures!
               │   ├── post.png      # Reddit post screenshot
               │   └── external.png  # External article screenshot

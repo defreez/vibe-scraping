@@ -13,6 +13,7 @@ const fs = require('fs');
 const path = require('path');
 const { OpenAI } = require('openai');
 const sharp = require('sharp');
+const analyze = require('./analyze');
 
 // Constants
 const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36';
@@ -68,6 +69,16 @@ If the post contains an image, describe what's in the image and how it relates t
 
 Start your analysis with a bold heading that includes the post title.
 Format your analysis in clear sections with descriptive headers.
+Use the style of a concise, informative newsletter like tl;dr sec.
+`;
+
+// Template for the newsletter introduction with recipient personalization
+const NEWSLETTER_INTRO_TEMPLATE = `# tl;dr {subreddit}
+
+Hey {recipient_name},
+
+I'm your AI-powered Reddit digest for r/{subreddit}. Here are topics I found that might interest you today {date}:
+
 `;
 
 // Initialize OpenAI client - will use environment variable OPENAI_API_KEY
@@ -663,9 +674,9 @@ async function processSubreddit(browser, subreddit, baseOutputDir) {
               screenshotPath // Pass the post screenshot path
             );
 
-            // Save the combined analysis
-            fs.writeFileSync(path.join(postDir, 'analysis.txt'), analysis);
-            console.log(`Combined analysis saved to ${postDir}/analysis.txt`);
+            // Save the combined analysis in markdown format
+            fs.writeFileSync(path.join(postDir, 'analysis.md'), analysis);
+            console.log(`Combined analysis saved to ${postDir}/analysis.md`);
           } catch (analysisError) {
             console.error(`Error analyzing post ${i + 1}: ${analysisError.message}`);
           }
@@ -690,17 +701,144 @@ async function processSubreddit(browser, subreddit, baseOutputDir) {
   }
 }
 
+/**
+ * Generate a security-focused newsletter from the analysis results in a tl;dr sec style
+ * @param {string} recipientName - Name of the recipient for personalization
+ * @param {string} subreddit - Name of the subreddit
+ * @param {string} runDir - Directory containing the run data
+ * @returns {Promise<string>} Newsletter content
+ */
+async function generateNewsletter(recipientName, subreddit, runDir) {
+  try {
+    console.log(`Generating newsletter for ${recipientName} from r/${subreddit}...`);
+
+    // Get the subreddit directory
+    const subredditDir = path.join(runDir, subreddit);
+
+    // Check if directory exists
+    if (!fs.existsSync(subredditDir)) {
+      throw new Error(`Subreddit directory not found: ${subredditDir}`);
+    }
+
+    // Get all post directories
+    const postDirs = fs.readdirSync(subredditDir)
+      .filter(item => item.startsWith('post_') &&
+              fs.statSync(path.join(subredditDir, item)).isDirectory());
+
+    if (postDirs.length === 0) {
+      throw new Error(`No post directories found in ${subredditDir}`);
+    }
+
+    // Current date for newsletter
+    const currentDate = new Date().toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    // Create newsletter intro
+    let newsletter = NEWSLETTER_INTRO_TEMPLATE
+      .replace('{recipient_name}', recipientName || 'there')
+      .replace('{subreddit}', subreddit)
+      .replace('{date}', currentDate);
+
+    // Process each post
+    for (const postDir of postDirs) {
+      const fullPostDir = path.join(subredditDir, postDir);
+
+      // Get post metadata
+      const metadataPath = path.join(fullPostDir, 'metadata.json');
+      if (!fs.existsSync(metadataPath)) {
+        console.warn(`Metadata not found for ${postDir}, skipping`);
+        continue;
+      }
+
+      const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+
+      // Get analysis (checking for .md first, then .txt as fallback)
+      let analysisText;
+      const analysisMdPath = path.join(fullPostDir, 'analysis.md');
+      const analysisTxtPath = path.join(fullPostDir, 'analysis.txt');
+
+      if (fs.existsSync(analysisMdPath)) {
+        analysisText = fs.readFileSync(analysisMdPath, 'utf8');
+      } else if (fs.existsSync(analysisTxtPath)) {
+        analysisText = fs.readFileSync(analysisTxtPath, 'utf8');
+      } else {
+        console.warn(`No analysis found for ${postDir}, skipping`);
+        continue;
+      }
+
+      // Extract key points from analysis for newsletter
+      const newsletterPrompt = `
+        I need a newsletter summary for this Reddit content analysis.
+        Write a concise headline + 2-4 sentence summary that captures the key points and insights.
+        Include a single emoji at the start that represents the content.
+        Start with a ## heading with a catchy title.
+
+        Be self-aware that you're an AI summarizing Reddit content, and occasionally reference this fact in an appropriate way.
+
+        Here's the analysis:
+        ${analysisText}
+      `;
+
+      // Generate the newsletter section
+      console.log(`Generating newsletter section for ${metadata.title}...`);
+      const response = await openai.responses.create({
+        model: SUMMARY_MODEL,
+        input: [{
+          role: "user",
+          content: [{ type: "input_text", text: newsletterPrompt }]
+        }]
+      });
+
+      // Add section to newsletter
+      newsletter += response.output_text + '\n\n';
+    }
+
+    // Add footer
+    newsletter += `
+---
+
+That's all for today! This newsletter was generated entirely by AI based on content from r/${subreddit}.
+
+Stay informed,
+Your AI Reddit Digest Assistant
+`;
+
+    // Save newsletter to file
+    const newsletterPath = path.join(runDir, `${subreddit}_newsletter_${recipientName || 'default'}.md`);
+    fs.writeFileSync(newsletterPath, newsletter);
+    console.log(`Newsletter saved to ${newsletterPath}`);
+
+    return newsletter;
+  } catch (error) {
+    console.error(`Error generating newsletter: ${error.message}`);
+    return `Error generating newsletter: ${error.message}`;
+  }
+}
+
 async function main() {
+  // Check for required recipient name
+  if (process.argv.length < 4 || process.argv[2] !== '--recipient') {
+    console.error('\nERROR: Recipient name is required as the first argument.');
+    console.error('Usage: node index.js --recipient "Recipient Name" [subreddits...]\n');
+    process.exit(1);
+  }
+
+  // Extract recipient name
+  const recipientName = process.argv[3];
+  console.log(`Recipient name set to: "${recipientName}"`);
+
   // Get subreddits from command line or use defaults
   let subreddits = DEFAULT_SUBREDDITS;
-  
-  // If command line arguments are provided, use them as subreddits
-  if (process.argv.length > 2) {
-    subreddits = process.argv.slice(2);
+  if (process.argv.length > 4) {
+    subreddits = process.argv.slice(4);
   }
-  
+
   console.log(`Preparing to scrape ${subreddits.length} subreddits: r/${subreddits.join(', r/')}`);
-  
+
   // Create a run ID (YYYYMMDD_HHMM format)
   const now = new Date();
   const runId = now.toISOString()
@@ -711,7 +849,7 @@ async function main() {
   // Create base output directory structure for this run
   const baseOutputDir = path.join('output', runId);
   fs.mkdirSync(baseOutputDir, { recursive: true });
-  
+
   // Launch the browser (shared across all subreddits)
   console.log('Launching browser...');
   const browser = await puppeteer.launch({ headless: "new" });
@@ -721,10 +859,46 @@ async function main() {
     for (const subreddit of subreddits) {
       await processSubreddit(browser, subreddit, baseOutputDir);
     }
-    
+
     console.log(`\n====================================`);
     console.log(`All subreddits processed successfully!`);
     console.log(`Output saved to: output/${runId}/`);
+
+    // Generate single-subreddit newsletters
+    for (const subreddit of subreddits) {
+      await generateNewsletter(recipientName, subreddit, baseOutputDir);
+    }
+    console.log(`Individual subreddit newsletters generated successfully!`);
+
+    // Generate subreddit-level analyses
+    console.log(`\nGenerating subreddit-level analyses...`);
+    for (const subreddit of subreddits) {
+      await analyze.generateSubredditAnalysis(subreddit, baseOutputDir);
+    }
+    console.log(`Subreddit analyses completed successfully!`);
+
+    // Generate combined newsletter
+    console.log(`\nGenerating combined newsletter from all subreddits...`);
+    try {
+      // Verify that subreddit analyses exist
+      let allAnalysesExist = true;
+      for (const subreddit of subreddits) {
+        const analysisPath = path.join(baseOutputDir, subreddit, 'subreddit_analysis.md');
+        if (!fs.existsSync(analysisPath)) {
+          console.warn(`Warning: Subreddit analysis not found at ${analysisPath}`);
+          allAnalysesExist = false;
+        }
+      }
+
+      if (allAnalysesExist) {
+        await analyze.generateCombinedNewsletter(recipientName, subreddits, baseOutputDir);
+        console.log(`Combined newsletter generated successfully!`);
+      } else {
+        console.error(`Combined newsletter generation skipped due to missing subreddit analyses.`);
+      }
+    } catch (error) {
+      console.error(`Error generating combined newsletter: ${error.message}`);
+    }
     console.log(`====================================`);
   } catch (error) {
     console.error('An error occurred during processing:', error);
