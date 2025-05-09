@@ -14,6 +14,7 @@ const path = require('path');
 const { OpenAI } = require('openai');
 const sharp = require('sharp');
 const analyze = require('./analyze');
+const reports = require('./reports');
 
 // Constants
 const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36';
@@ -72,14 +73,7 @@ Format your analysis in clear sections with descriptive headers.
 Use the style of a concise, informative newsletter like tl;dr sec.
 `;
 
-// Template for the newsletter introduction with recipient personalization
-const NEWSLETTER_INTRO_TEMPLATE = `# tl;dr {subreddit}
-
-Hey {recipient_name},
-
-Your personalized Reddit digest for r/{subreddit} is ready. Here are today's notable topics from {date} that align with your interests:
-
-`;
+// Template variables will be loaded from reports.js based on report type
 
 // Initialize OpenAI client - will use environment variable OPENAI_API_KEY
 const openai = new OpenAI();
@@ -702,15 +696,16 @@ async function processSubreddit(browser, subreddit, baseOutputDir) {
 }
 
 /**
- * Generate a security-focused newsletter from the analysis results in a tl;dr sec style
- * @param {string} recipientName - Name of the recipient for personalization
+ * Generate a newsletter from the analysis results based on report type
+ * @param {string|null} recipientName - Name of the recipient for personalization (optional)
  * @param {string} subreddit - Name of the subreddit
  * @param {string} runDir - Directory containing the run data
+ * @param {object} reportConfig - The report configuration to use
  * @returns {Promise<string>} Newsletter content
  */
-async function generateNewsletter(recipientName, subreddit, runDir) {
+async function generateNewsletter(recipientName, subreddit, runDir, reportConfig) {
   try {
-    console.log(`Generating newsletter for ${recipientName} from r/${subreddit}...`);
+    console.log(`Generating ${reportConfig.name} for ${recipientName || 'all users'} from r/${subreddit}...`);
 
     // Get the subreddit directory
     const subredditDir = path.join(runDir, subreddit);
@@ -737,8 +732,8 @@ async function generateNewsletter(recipientName, subreddit, runDir) {
       day: 'numeric'
     });
 
-    // Create newsletter intro
-    let newsletter = NEWSLETTER_INTRO_TEMPLATE
+    // Create newsletter intro using the template from report config
+    let newsletter = reportConfig.newsletterIntro
       .replace('{recipient_name}', recipientName || 'there')
       .replace('{subreddit}', subreddit)
       .replace('{date}', currentDate);
@@ -770,44 +765,10 @@ async function generateNewsletter(recipientName, subreddit, runDir) {
         continue;
       }
 
-      // Extract key points from analysis for newsletter
-      const newsletterPrompt = `
-        I need a high-quality newsletter summary for this Reddit content analysis.
-
-        First, evaluate if this content is truly worth including:
-
-        INCLUDE content that is:
-        - Breaking news or major developments
-        - Significant releases or technical updates
-        - Expert analyses with valuable insights
-        - Important security or industry information
-        - Novel ideas or concepts of substantial interest
-
-        EXCLUDE entirely any content that is:
-        - Memes, jokes, or shitposts
-        - Common knowledge or redundant information
-        - Low-effort questions or discussions
-        - Personal anecdotes without broader relevance
-        - Trivial updates with minimal impact
-
-        If the content meets the quality threshold, write a concise headline + 2-4 sentence summary.
-        Include a single emoji at the start that represents the content.
-        Start with a ## heading with a catchy title.
-
-        IMPORTANT: Always include a direct link to the original Reddit post in your summary using the markdown format [Title](${metadata.link})
-
-        The link format should be:
-        - Title should be a very short (2-5 words) version of the headline
-        - The link itself should be the original post URL: ${metadata.link}
-        - Place this link either at the beginning or end of your summary
-
-        If the content does NOT meet the quality threshold, respond with "LOW_VALUE_CONTENT" and I'll skip this post.
-
-        Write as if you're a highly perceptive human editor with extraordinary analytical abilities and a subtle, dry sense of humor. The tone should be knowledgeable, authoritative, and slightly witty. Avoid any references to efficiency, processing speed, or data analysis capabilities in your humor.
-
-        Here's the analysis:
-        ${analysisText}
-      `;
+      // Extract key points from analysis for newsletter using the configured template
+      const newsletterPrompt = reportConfig.newsletterItemPrompt
+        .replace('{postLink}', metadata.link)
+        .replace('{analysisText}', analysisText);
 
       // Generate the newsletter section
       console.log(`Generating newsletter section for ${metadata.title}...`);
@@ -828,20 +789,15 @@ async function generateNewsletter(recipientName, subreddit, runDir) {
       }
     }
 
-    // Add footer
-    newsletter += `
----
+    // Add footer from the report config
+    newsletter += reportConfig.combinedNewsletterFooter
+      .replace('{subreddit}', subreddit);
 
-That's all for today's r/${subreddit} digest. Your next update will arrive at the same time tomorrow.
-
-Stay informed,
-The Reddit Insight Team
-`;
-
-    // Save newsletter to file
-    const newsletterPath = path.join(runDir, `${subreddit}_newsletter_${recipientName || 'default'}.md`);
+    // Save report to file with report type in the filename
+    const reportType = reportConfig.name.toLowerCase().replace(/\s+/g, '_');
+    const newsletterPath = path.join(runDir, `${subreddit}_${reportType}_${recipientName || 'default'}.md`);
     fs.writeFileSync(newsletterPath, newsletter);
-    console.log(`Newsletter saved to ${newsletterPath}`);
+    console.log(`${reportConfig.name} saved to ${newsletterPath}`);
 
     return newsletter;
   } catch (error) {
@@ -851,22 +807,52 @@ The Reddit Insight Team
 }
 
 async function main() {
-  // Check for required recipient name
-  if (process.argv.length < 4 || process.argv[2] !== '--recipient') {
-    console.error('\nERROR: Recipient name is required as the first argument.');
-    console.error('Usage: node index.js --recipient "Recipient Name" [subreddits...]\n');
-    process.exit(1);
+  // Parse command line arguments
+  let recipientName = null;
+  let reportType = reports.DEFAULT_REPORT_TYPE;
+  let subreddits = DEFAULT_SUBREDDITS;
+  let argIndex = 2;
+
+  // Process command line flags
+  while (process.argv.length > argIndex && process.argv[argIndex].startsWith('--')) {
+    const flag = process.argv[argIndex];
+
+    if (flag === '--recipient' && process.argv.length > argIndex + 1) {
+      recipientName = process.argv[argIndex + 1];
+      console.log(`Recipient name set to: "${recipientName}"`);
+      argIndex += 2;
+    }
+    else if (flag === '--type' && process.argv.length > argIndex + 1) {
+      const requestedType = process.argv[argIndex + 1].toLowerCase();
+      const availableTypes = reports.getAvailableReportTypes();
+
+      if (availableTypes.includes(requestedType)) {
+        reportType = requestedType;
+        console.log(`Report type set to: "${reportType}"`);
+      } else {
+        console.warn(`Warning: Unknown report type "${requestedType}". Using default type "${reports.DEFAULT_REPORT_TYPE}"`);
+        console.warn(`Available types: ${availableTypes.join(', ')}`);
+      }
+      argIndex += 2;
+    }
+    else {
+      console.error(`\nERROR: Unknown or incomplete flag: ${flag}`);
+      console.error(`Usage: node index.js [--recipient "Name"] [--type newsletter|market|academic] [subreddits...]\n`);
+      process.exit(1);
+    }
   }
 
-  // Extract recipient name
-  const recipientName = process.argv[3];
-  console.log(`Recipient name set to: "${recipientName}"`);
+  if (!recipientName) {
+    console.log('No recipient name provided, using default greeting');
+  }
 
   // Get subreddits from command line or use defaults
-  let subreddits = DEFAULT_SUBREDDITS;
-  if (process.argv.length > 4) {
-    subreddits = process.argv.slice(4);
+  if (process.argv.length > argIndex) {
+    subreddits = process.argv.slice(argIndex);
   }
+
+  // Get the report configuration based on type
+  const reportConfig = reports.getReportConfig(reportType);
 
   console.log(`Preparing to scrape ${subreddits.length} subreddits: r/${subreddits.join(', r/')}`);
 
@@ -895,21 +881,21 @@ async function main() {
     console.log(`All subreddits processed successfully!`);
     console.log(`Output saved to: output/${runId}/`);
 
-    // Generate single-subreddit newsletters
+    // Generate single-subreddit newsletters with the selected report type
     for (const subreddit of subreddits) {
-      await generateNewsletter(recipientName, subreddit, baseOutputDir);
+      await generateNewsletter(recipientName, subreddit, baseOutputDir, reportConfig);
     }
-    console.log(`Individual subreddit newsletters generated successfully!`);
+    console.log(`Individual subreddit ${reportConfig.name.toLowerCase()} reports generated successfully!`);
 
     // Generate subreddit-level analyses
     console.log(`\nGenerating subreddit-level analyses...`);
     for (const subreddit of subreddits) {
-      await analyze.generateSubredditAnalysis(subreddit, baseOutputDir);
+      await analyze.generateSubredditAnalysis(subreddit, baseOutputDir, reportConfig);
     }
     console.log(`Subreddit analyses completed successfully!`);
 
-    // Generate topic-based digest
-    console.log(`\nGenerating topic-based digest from all content...`);
+    // Generate combined report
+    console.log(`\nGenerating combined ${reportConfig.name} from all content...`);
     try {
       // Verify that subreddit analyses exist
       let allAnalysesExist = true;
@@ -922,10 +908,10 @@ async function main() {
       }
 
       if (allAnalysesExist) {
-        await analyze.generateCombinedNewsletter(recipientName, subreddits, baseOutputDir);
-        console.log(`Topic-based digest generated successfully!`);
+        await analyze.generateCombinedNewsletter(recipientName, subreddits, baseOutputDir, reportConfig);
+        console.log(`Combined ${reportConfig.name} generated successfully!`);
       } else {
-        console.error(`Topic-based digest generation skipped due to missing subreddit analyses.`);
+        console.error(`Combined ${reportConfig.name} generation skipped due to missing subreddit analyses.`);
       }
     } catch (error) {
       console.error(`Error generating topic-based digest: ${error.message}`);
