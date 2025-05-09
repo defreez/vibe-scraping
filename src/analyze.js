@@ -212,9 +212,16 @@ async function generateCombinedNewsletter(recipientName, subreddits, runDir, rep
     // Add footer from the report config
     newsletter += reportConfig.combinedNewsletterFooter;
     
+    // Determine run ID from runDir path
+    const runId = path.basename(runDir);
+
+    // Create reports directory for this run
+    const reportsDir = path.join('data', 'reports', runId);
+    fs.mkdirSync(reportsDir, { recursive: true });
+
     // Save newsletter to file with report type in the filename
     const reportType = reportConfig.name.toLowerCase().replace(/\s+/g, '_');
-    const newsletterPath = path.join(runDir, `combined_${reportType}_${recipientName || 'all'}.md`);
+    const newsletterPath = path.join(reportsDir, `combined_${reportType}_${recipientName || 'all'}.md`);
     fs.writeFileSync(newsletterPath, newsletter);
     console.log(`Combined ${reportConfig.name} saved to ${newsletterPath}`);
     

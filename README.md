@@ -1,4 +1,4 @@
-# 🔮 Vibe Scraping
+# Vibe Scraping
 
 <img src="logo.png" alt="Vibe Scraping Logo" width="300"/>
 
@@ -10,30 +10,19 @@ Web scraping is the automated process of extracting data from websites. It invol
 
 ## What This Tool Does
 
-Vibe Scraping is a comprehensive web content analysis tool that:
+Vibe Scraping is a web content analysis tool that:
 
 1. **Automated Content Collection**: Uses Puppeteer (headless Chrome browser) to navigate to Reddit subreddits and follow links
 2. **DOM Interaction**: Extracts structured data from Reddit's custom web components (post titles, comments, permalinks)
-3. **Full-Page Capturing**: Takes high-quality screenshots of Reddit posts and external linked articles
+3. **Full-Page Capturing**: Takes screenshots of Reddit posts *and* external linked articles
 4. **Multi-level Extraction**:
    - Grabs subreddits of your choice
    - Pulls the top posts from each subreddit
    - Extracts post metadata, comments, and user interactions
    - Follows external links to capture original source content
-5. **Visual Processing**: Uses GPT-4.1 to analyze screenshots and extract text from images
-6. **Content Analysis**: Processes text and visual content to generate meaningful insights
-7. **Report Generation**: Creates structured, categorized reports based on configured templates
-
-Unlike simple HTTP scrapers that just download HTML, this tool simulates full browser interactions, handles JavaScript-rendered content, and processes visual elements - creating a complete picture of online discussions.
+5. **Report Generation**: Creates structured, categorized reports based on configured templates
 
 Perfect for "Market research"
-
-For developers, the architecture demonstrates:
-- Headless browser automation with Puppeteer
-- Web content extraction from modern single-page applications
-- Integration of AI/ML for content analysis
-- Modular template system for customizable outputs
-- Parallel processing of multiple content sources 
 
 ## 📋 Prerequisites
 
@@ -45,125 +34,157 @@ You'll need:
 ## 🛠️ Installation
 
 ```bash
-# Clone this repository (or download it, I'm not your boss)
+# Clone this repository
 git clone https://github.com/defreez/vibe-scraping.git
 
 # Navigate to the project directory
 cd vibe-scraping
 
-# Install dependencies (pray that nothing breaks)
+# Install dependencies
 npm install
+
+# Install globally (optional, for CLI commands)
+npm install -g .
 ```
 
 ## 🚀 Usage
 
 ```bash
-# Set your API key (don't commit this to GitHub unless you like surprise AWS bills)
-export OPENAI_API_KEY=your_actual_key_here
+# Set your OpenAI API key
+export OPENAI_API_KEY=your_api_key_here
 
-# Basic usage with default settings (newsletter report type)
-node index.js --recipient "Alice Smith"
+# Get help with command-line options
+vibe-scrape --help
 
-# Specify a report type (newsletter, market, or academic)
-node index.js --type market --recipient "Bob Jones"
+# Basic usage (requires at least one subreddit)
+vibe-scrape programming
 
-# Recipient is optional - without recipient, uses "Hey there" as greeting
-node index.js --type academic programming
-
-# Specify multiple subreddits (defaults: r/news, r/ashland)
-node index.js --recipient "Charlie Brown" --type newsletter programming
-
-# Scrape multiple specific subreddits
-node index.js --type market worldnews politics technology
-
-# Order of flags doesn't matter
-node index.js worldnews politics --recipient "Dana Smith" --type academic
+# Specify multiple subreddits
+vibe-scrape programming worldnews technology
 ```
 
-## 📊 Additional Analysis
+## 📊 Report Types
 
-The script automatically generates hierarchical analyses:
-1. Individual post analysis (analysis.md in each post directory)
-2. Subreddit-level analysis (subreddit_analysis.md in each subreddit directory)
-3. Combined report across all subreddits (combined_report_type_name.md in the root output directory)
-
-### Report Types
-
-Three report types are available, each with unique focus and style:
+Two report types are available with vibe-analyze, each with unique focus and style:
 
 1. **Newsletter** (default) - General information digest with key highlights and summaries
-2. **Market** - Business-focused analysis with market trends, consumer insights, and competitive intelligence
-3. **Academic** - Scholarly analysis with research implications, methodological considerations, and theoretical frameworks
+2. **Literature Review** - Formal academic literature review following systematic review methodology
 
-You can also run additional analysis on existing output directories:
+Report types are selected when analyzing data, not during scraping:
+```bash
+# Generate newsletter style report (default)
+vibe-analyze ./data/raw/20250508_123456
+
+# Generate literature review style report
+vibe-analyze ./data/raw/20250508_123456 --type academic
+```
+
+## 🔍 Analyzing Existing Data
+
+You can run analysis on previously scraped content:
 
 ```bash
-# Process additional analyses on an existing run directory
-node analyze.js ./output/TIMESTAMP_DIRECTORY --recipient "Bob Jones"
+# Get help with command-line options
+vibe-analyze --help
 
-# Generate a different report type from existing data
-node analyze.js ./output/TIMESTAMP_DIRECTORY --type market
+# Basic usage (requires raw data directory path)
+vibe-analyze ./data/raw/TIMESTAMP_DIRECTORY
 
-# Combine flags as needed
-node analyze.js ./output/TIMESTAMP_DIRECTORY --type academic --recipient "Charlie Brown"
+# Using npm run script
+npm run analyze -- ./data/raw/TIMESTAMP_DIRECTORY
+
+# Generate a specific report type from existing data
+vibe-analyze ./data/raw/TIMESTAMP_DIRECTORY --type academic
+
+# Add recipient name for personalized reports
+vibe-analyze ./data/raw/TIMESTAMP_DIRECTORY --recipient "Charlie"
+
+# Combine options
+vibe-analyze ./data/raw/TIMESTAMP_DIRECTORY --type academic --recipient "Charlie"
 ```
 
-## 🗂️ Output Structure
+## 🗂️ Project Structure
 
 ```
-output/
-  └── TIMESTAMP/                    # Timestamp because version control is for the weak
-      ├── combined_subreddits_newsletter.md # Combined newsletter for all subreddits
-      └── SUBREDDIT/                # Whatever subreddit you're analyzing
-          ├── screenshots/          # Pictures, because reading is hard
-          ├── page.html             # Raw HTML in case you need it (you won't)
-          ├── posts.json            # Data for all scraped posts
-          ├── subreddit_analysis.md # Comprehensive analysis of all posts in the subreddit
-          ├── SUBREDDIT_newsletter.md # Single subreddit newsletter
-          └── post_1_keyword_phrase/# Each post gets its own home with an AI-generated name
-              ├── metadata.json     # Post details that might be useful someday (narrator: they weren't)
-              ├── post.html         # More HTML you'll never look at
-              ├── comments.json     # What people are actually fighting about
-              ├── analysis.md       # What GPT-4.1 thinks about this post (in markdown!)
-              ├── screenshots/      # More pictures!
-              │   ├── post.png      # Reddit post screenshot
-              │   └── external.png  # External article screenshot
-              └── external/         # For links to news sites and such
-                  ├── external.html # Even more HTML you'll never read
-                  └── article.txt   # The article text, finally
+/
+├── bin/                  # Executable CLI scripts
+│   ├── vibe-scrape       # Main scraping command
+│   └── vibe-analyze      # Analysis command for existing outputs
+├── src/                  # Source code
+│   ├── scrape.js         # Scraping functionality
+│   ├── analyze.js        # Analysis functionality
+│   └── reports.js        # Report type configurations
+├── data/                 # Data directories
+│   ├── raw/              # Raw scraped data (gitignored)
+│   └── reports/          # Generated reports (gitignored)
+└── package.json          # Project configuration
+```
+
+## 📦 Output Structure
+
+```
+data/
+  ├── raw/                                # Raw scraped data
+  │   └── TIMESTAMP/                      # Run timestamp
+  │       └── SUBREDDIT/                  # Each subreddit gets a directory
+  │           ├── screenshots/            # Screenshots of the subreddit
+  │           └── post_#_keyword_phrase/  # Each post gets its own directory
+  │               ├── metadata.json       # Post metadata
+  │               ├── comments.json       # Extracted comments
+  │               ├── analysis.md         # AI analysis of post and comments
+  │               ├── screenshots/        # Screenshots for this post
+  │               │   ├── post.png        # Reddit post screenshot
+  │               │   └── external.png    # External link screenshot
+  │               └── external/           # External content
+  │                   └── article.txt     # Extracted article text
+  │
+  └── reports/                            # Generated reports
+      └── TIMESTAMP/                      # Run timestamp (matches raw data)
+          ├── combined_report-type_name.md # Combined report across subreddits
+          ├── subreddit_analysis.md       # Analysis of all posts
+          └── subreddit_report-type_name.md # Subreddit-specific report
 ```
 
 ## ⚙️ Configuration
 
 ### Basic Settings
 
-Edit these constants in `index.js` to customize:
+Edit these constants in `src/scrape.js` to customize:
 
 ```javascript
 // Constants
-const USER_AGENT = '...';  // Change if you want to pretend to be a different browser
+const USER_AGENT = '...';  // Browser user agent
 const IMAGE_MODEL = 'gpt-4.1-mini';  // For extracting article text
 const ANALYSIS_MODEL = 'gpt-4.1';    // For deeper analysis
 const SUMMARY_MODEL = 'gpt-4.1';     // For generating folder names
-const DEFAULT_SUBREDDITS = ['news', 'ashland'];  // Default subreddits to scrape
+const POSTS_PER_SUBREDDIT = 3;  // Default number of posts to scrape per subreddit
+```
+
+You can also override settings with command-line options:
+
+```bash
+# Override posts per subreddit (default is 3)
+vibe-scrape --num-posts 10 programming
 ```
 
 ### Custom Report Types
 
-Add or modify report types in `reports.js`:
+Add new report types in `src/reports.js`:
 
 ```javascript
-// To add a new report type:
-1. Add a new key to REPORT_TYPES
-2. Create a config object with templates and prompts
-3. Add it to the reportConfigs map
+// 1. Add a new key to REPORT_TYPES
+const REPORT_TYPES = {
+  newsletter: "newsletter",
+  academic: "academic",
+  custom: "custom" // Add your new type here
+};
 
-// Example:
+// 2. Create a configuration object for your type
 const customConfig = {
   name: "Custom Report",
   description: "Your custom report description",
-
-  // Templates (see existing types for structure)
+  
+  // Required templates
   newsletterIntro: `...`,
   subredditAnalysisPrompt: `...`,
   combinedNewsletterPrompt: `...`,
@@ -171,12 +192,11 @@ const customConfig = {
   combinedNewsletterFooter: `...`
 };
 
-// Add to report configs
+// 3. Add it to the reportConfigs map
 const reportConfigs = {
   [REPORT_TYPES.newsletter]: newsletterConfig,
-  [REPORT_TYPES.market]: marketConfig,
   [REPORT_TYPES.academic]: academicConfig,
-  [REPORT_TYPES.custom]: customConfig  // Add your new type here
+  [REPORT_TYPES.custom]: customConfig
 };
 ```
 

@@ -1,0 +1,38 @@
+# Source code (only dist is needed)
+src/
+
+# Tests
+test/
+mocha.opts
+*.spec.js
+*.test.js
+
+# Project files
+.gitignore
+.github/
+docs/
+examples/
+output/
+
+# Coverage 
+coverage/
+.nyc_output
+
+# Editor configs
+.idea/
+.vscode/
+
+# Logs
+logs/
+*.log
+
+# Temp files
+.tmp/
+tmp/
+temp/
+
+# Claude settings
+.claude/
+
+# Environment variable files
+.env*

@@ -21,7 +21,7 @@ const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/
 const IMAGE_MODEL = 'gpt-4.1-mini';  // Model used for image analysis and article extraction
 const ANALYSIS_MODEL = 'gpt-4.1';    // Model used for in-depth article/comment analysis
 const SUMMARY_MODEL = 'gpt-4.1'; // Model used for quick one-word summaries
-const DEFAULT_SUBREDDITS = ['news', 'ashland'];
+// No default subreddits - they must be specified
 const POSTS_PER_SUBREDDIT = 3;  // Number of posts to scrape per subreddit (can be modified)
 
 // Prompt Templates
@@ -427,9 +427,10 @@ async function autoScroll(page) {
  * @param {Browser} browser - Puppeteer browser instance
  * @param {string} subreddit - Subreddit name to scrape
  * @param {string} baseOutputDir - Base output directory for this run
+ * @param {number} postsPerSubreddit - Number of posts to scrape per subreddit
  * @returns {Promise<void>}
  */
-async function processSubreddit(browser, subreddit, baseOutputDir) {
+async function processSubreddit(browser, subreddit, baseOutputDir, postsPerSubreddit = POSTS_PER_SUBREDDIT) {
   console.log(`\n========== Processing r/${subreddit} ==========`);
   
   try {
@@ -502,7 +503,7 @@ async function processSubreddit(browser, subreddit, baseOutputDir) {
     });
 
     // Limit to configured number of posts per subreddit
-    const postsToVisit = postsData.slice(0, POSTS_PER_SUBREDDIT);
+    const postsToVisit = postsData.slice(0, postsPerSubreddit);
 
     // Save the extracted post data to JSON file
     fs.writeFileSync(path.join(subredditDir, 'posts.json'), JSON.stringify(postsData, null, 2));
@@ -795,7 +796,12 @@ async function generateNewsletter(recipientName, subreddit, runDir, reportConfig
 
     // Save report to file with report type in the filename
     const reportType = reportConfig.name.toLowerCase().replace(/\s+/g, '_');
-    const newsletterPath = path.join(runDir, `${subreddit}_${reportType}_${recipientName || 'default'}.md`);
+
+    // Create reports directory for this run
+    const reportsDir = path.join('data', 'reports', path.basename(runDir));
+    fs.mkdirSync(reportsDir, { recursive: true });
+
+    const newsletterPath = path.join(reportsDir, `${subreddit}_${reportType}_${recipientName || 'default'}.md`);
     fs.writeFileSync(newsletterPath, newsletter);
     console.log(`${reportConfig.name} saved to ${newsletterPath}`);
 
@@ -808,51 +814,52 @@ async function generateNewsletter(recipientName, subreddit, runDir, reportConfig
 
 async function main() {
   // Parse command line arguments
-  let recipientName = null;
-  let reportType = reports.DEFAULT_REPORT_TYPE;
-  let subreddits = DEFAULT_SUBREDDITS;
+  let subreddits = [];
+  let postsPerSubreddit = POSTS_PER_SUBREDDIT; // Use default from constants
   let argIndex = 2;
 
   // Process command line flags
   while (process.argv.length > argIndex && process.argv[argIndex].startsWith('--')) {
     const flag = process.argv[argIndex];
 
-    if (flag === '--recipient' && process.argv.length > argIndex + 1) {
-      recipientName = process.argv[argIndex + 1];
-      console.log(`Recipient name set to: "${recipientName}"`);
+    if (flag === '--num-posts' && process.argv.length > argIndex + 1) {
+      const numPosts = parseInt(process.argv[argIndex + 1], 10);
+      if (isNaN(numPosts) || numPosts <= 0) {
+        console.error(`\nERROR: Invalid value for --num-posts: ${process.argv[argIndex + 1]}`);
+        console.error('The value must be a positive integer');
+        console.error('Use -h or --help for more information');
+        process.exit(1);
+      }
+      postsPerSubreddit = numPosts;
+      console.log(`Posts per subreddit set to: ${postsPerSubreddit}`);
       argIndex += 2;
     }
-    else if (flag === '--type' && process.argv.length > argIndex + 1) {
-      const requestedType = process.argv[argIndex + 1].toLowerCase();
-      const availableTypes = reports.getAvailableReportTypes();
-
-      if (availableTypes.includes(requestedType)) {
-        reportType = requestedType;
-        console.log(`Report type set to: "${reportType}"`);
-      } else {
-        console.warn(`Warning: Unknown report type "${requestedType}". Using default type "${reports.DEFAULT_REPORT_TYPE}"`);
-        console.warn(`Available types: ${availableTypes.join(', ')}`);
-      }
-      argIndex += 2;
+    else if (flag === '--type') {
+      console.error(`\nERROR: Report type selection (--type) is not supported in vibe-scrape`);
+      console.error(`Use vibe-report to select report types when processing existing data\n`);
+      console.error('Use -h or --help for more information');
+      process.exit(1);
     }
     else {
-      console.error(`\nERROR: Unknown or incomplete flag: ${flag}`);
-      console.error(`Usage: node index.js [--recipient "Name"] [--type newsletter|market|academic] [subreddits...]\n`);
+      console.error(`\nERROR: Unknown option: ${flag}`);
+      console.error('Use -h or --help for more information');
       process.exit(1);
     }
   }
 
-  if (!recipientName) {
-    console.log('No recipient name provided, using default greeting');
-  }
-
-  // Get subreddits from command line or use defaults
+  // Get subreddits from command line arguments (required)
   if (process.argv.length > argIndex) {
     subreddits = process.argv.slice(argIndex);
+  } else {
+    console.error('\nERROR: At least one subreddit must be specified.');
+    console.error('Usage: vibe-scrape <subreddit1> [subreddit2...]\n');
+    console.error('Use -h or --help for more information');
+    process.exit(1);
   }
 
-  // Get the report configuration based on type
-  const reportConfig = reports.getReportConfig(reportType);
+  // Use the default report type for initial scraping
+  // Report type selection happens in vibe-analyze
+  const reportConfig = reports.getReportConfig(reports.DEFAULT_REPORT_TYPE);
 
   console.log(`Preparing to scrape ${subreddits.length} subreddits: r/${subreddits.join(', r/')}`);
 
@@ -864,7 +871,7 @@ async function main() {
     .replace(/[-:]/g, '');
 
   // Create base output directory structure for this run
-  const baseOutputDir = path.join('output', runId);
+  const baseOutputDir = path.join('data', 'raw', runId);
   fs.mkdirSync(baseOutputDir, { recursive: true });
 
   // Launch the browser (shared across all subreddits)
@@ -874,48 +881,13 @@ async function main() {
   try {
     // Process each subreddit
     for (const subreddit of subreddits) {
-      await processSubreddit(browser, subreddit, baseOutputDir);
+      await processSubreddit(browser, subreddit, baseOutputDir, postsPerSubreddit);
     }
 
     console.log(`\n====================================`);
     console.log(`All subreddits processed successfully!`);
-    console.log(`Output saved to: output/${runId}/`);
-
-    // Generate single-subreddit newsletters with the selected report type
-    for (const subreddit of subreddits) {
-      await generateNewsletter(recipientName, subreddit, baseOutputDir, reportConfig);
-    }
-    console.log(`Individual subreddit ${reportConfig.name.toLowerCase()} reports generated successfully!`);
-
-    // Generate subreddit-level analyses
-    console.log(`\nGenerating subreddit-level analyses...`);
-    for (const subreddit of subreddits) {
-      await analyze.generateSubredditAnalysis(subreddit, baseOutputDir, reportConfig);
-    }
-    console.log(`Subreddit analyses completed successfully!`);
-
-    // Generate combined report
-    console.log(`\nGenerating combined ${reportConfig.name} from all content...`);
-    try {
-      // Verify that subreddit analyses exist
-      let allAnalysesExist = true;
-      for (const subreddit of subreddits) {
-        const analysisPath = path.join(baseOutputDir, subreddit, 'subreddit_analysis.md');
-        if (!fs.existsSync(analysisPath)) {
-          console.warn(`Warning: Subreddit analysis not found at ${analysisPath}`);
-          allAnalysesExist = false;
-        }
-      }
-
-      if (allAnalysesExist) {
-        await analyze.generateCombinedNewsletter(recipientName, subreddits, baseOutputDir, reportConfig);
-        console.log(`Combined ${reportConfig.name} generated successfully!`);
-      } else {
-        console.error(`Combined ${reportConfig.name} generation skipped due to missing subreddit analyses.`);
-      }
-    } catch (error) {
-      console.error(`Error generating topic-based digest: ${error.message}`);
-    }
+    console.log(`Raw data saved to: data/raw/${runId}/`);
+    console.log(`Use vibe-report to generate reports from this data.`);
     console.log(`====================================`);
   } catch (error) {
     console.error('An error occurred during processing:', error);
@@ -925,4 +897,12 @@ async function main() {
   }
 }
 
-main();
+// Export the main function
+module.exports = {
+  main
+};
+
+// Execute main function if this is the entry point
+if (require.main === module) {
+  main();
+}

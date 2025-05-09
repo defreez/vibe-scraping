@@ -2,14 +2,34 @@
   "name": "vibe-scraping",
   "version": "1.0.0",
   "description": "A tool for scraping Reddit and extracting article text using OpenAI Vision",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "main": "src/index.js",
+  "bin": {
+    "vibe-scrape": "./bin/vibe-scrape",
+    "vibe-report": "./bin/vibe-report"
   },
+  "scripts": {
+    "start": "node ./bin/vibe-scrape",
+    "report": "node ./bin/vibe-report",
+    "test": "mocha test/**/*.test.js"
+  },
+  "keywords": [
+    "cli",
+    "reddit",
+    "scraper",
+    "openai",
+    "web-scraping"
+  ],
+  "author": "",
+  "license": "MIT",
   "dependencies": {
     "openai": "^4.98.0",
     "puppeteer": "^24.8.2",
     "sharp": "^0.32.6"
+  },
+  "devDependencies": {
+    "mocha": "^10.2.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
   }
 }
