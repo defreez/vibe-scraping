@@ -21,7 +21,7 @@ const IMAGE_MODEL = 'gpt-4.1-mini';  // Model used for image analysis and articl
 const ANALYSIS_MODEL = 'gpt-4.1';    // Model used for in-depth article/comment analysis
 const SUMMARY_MODEL = 'gpt-4.1'; // Model used for quick one-word summaries
 const DEFAULT_SUBREDDITS = ['news', 'ashland'];
-const POSTS_PER_SUBREDDIT = 5;  // Number of posts to scrape per subreddit (can be modified)
+const POSTS_PER_SUBREDDIT = 3;  // Number of posts to scrape per subreddit (can be modified)
 
 // Prompt Templates
 const ARTICLE_EXTRACTION_PROMPT_TEMPLATE = `Analyze this webpage screenshot and extract the main article content. 
@@ -803,7 +803,7 @@ async function generateNewsletter(recipientName, subreddit, runDir) {
 
         If the content does NOT meet the quality threshold, respond with "LOW_VALUE_CONTENT" and I'll skip this post.
 
-        Write as if you're a highly perceptive human editor with extraordinary analytical abilities and a subtle, dry sense of humor. Don't explicitly state you're AI, but you may include one subtle hint or wry observation that suggests your unusually efficient information processing. The tone should be knowledgeable, authoritative, and slightly witty.
+        Write as if you're a highly perceptive human editor with extraordinary analytical abilities and a subtle, dry sense of humor. The tone should be knowledgeable, authoritative, and slightly witty. Avoid any references to efficiency, processing speed, or data analysis capabilities in your humor.
 
         Here's the analysis:
         ${analysisText}
@@ -908,8 +908,8 @@ async function main() {
     }
     console.log(`Subreddit analyses completed successfully!`);
 
-    // Generate combined newsletter
-    console.log(`\nGenerating combined newsletter from all subreddits...`);
+    // Generate topic-based digest
+    console.log(`\nGenerating topic-based digest from all content...`);
     try {
       // Verify that subreddit analyses exist
       let allAnalysesExist = true;
@@ -923,12 +923,12 @@ async function main() {
 
       if (allAnalysesExist) {
         await analyze.generateCombinedNewsletter(recipientName, subreddits, baseOutputDir);
-        console.log(`Combined newsletter generated successfully!`);
+        console.log(`Topic-based digest generated successfully!`);
       } else {
-        console.error(`Combined newsletter generation skipped due to missing subreddit analyses.`);
+        console.error(`Topic-based digest generation skipped due to missing subreddit analyses.`);
       }
     } catch (error) {
-      console.error(`Error generating combined newsletter: ${error.message}`);
+      console.error(`Error generating topic-based digest: ${error.message}`);
     }
     console.log(`====================================`);
   } catch (error) {

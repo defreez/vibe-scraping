@@ -190,11 +190,11 @@ async function generateCombinedNewsletter(recipientName, subreddits, runDir) {
     });
     
     // Create newsletter intro
-    let newsletter = `# tl;dr ${subreddits.join(', ')} newsletter
+    let newsletter = `# tl;dr digest
 
 Hey ${recipientName || 'there'},
 
-Your cross-subreddit digest is ready. Here's what's trending across r/${subreddits.join(', r/')} on ${currentDate}:
+Your personalized digest is ready. Here are today's key topics from ${currentDate}:
 
 `;
     
@@ -231,17 +231,29 @@ Your cross-subreddit digest is ready. Here's what's trending across r/${subreddi
     
     // Create prompt for newsletter
     const newsletterPrompt = `
-      Create a newsletter that summarizes key topics from these Reddit subreddit analyses.
+      Create a newsletter that summarizes key topics from these Reddit analyses, but organize by TOPIC CATEGORY rather than by subreddit.
 
-      For each subreddit section:
-      1. Create a concise, catchy title prefixed with "##"
-      2. Add 2-4 summarized items from that subreddit's analysis
+      Group content into 4-6 clear thematic categories such as:
+      - Technology & Software
+      - Security & Privacy
+      - Business & Industry News
+      - Research & Science
+      - Politics & Policy
+      - Culture & Society
+      - Tools & Resources
+      (Choose categories that best fit the actual content you see)
+
+      For each topic category:
+      1. Create a concise, catchy category title prefixed with "##"
+      2. Add 2-4 summarized items from ANY subreddit that fits this category
       3. Each item should have:
          - A clear headline in bold
          - A brief 1-3 sentence summary
          - An appropriate emoji at the start
          - Occasional personal insights marked with 💡
       4. Focus on interesting, informative takeaways
+
+      DO NOT organize by subreddit or mention which subreddit content came from (though keep the original links intact).
 
       Focus ONLY on the most valuable, informative content. Prioritize:
       - Breaking news and recent developments
@@ -257,7 +269,7 @@ Your cross-subreddit digest is ready. Here's what's trending across r/${subreddi
       - Personal anecdotes without broader relevance
       - Generic questions or repetitive discussions
 
-      Write in a knowing, informed tone that gently acknowledges the newsletter is AI-generated - but do so with subtlety and wit. Include exactly one subtle joke or wry observation that hints at your AI nature without being too obvious about it. The goal is to sound like a highly knowledgeable human editor with a dry sense of humor who happens to process information very efficiently.
+      Write in a knowing, informed tone with subtlety and wit. Include exactly one subtle joke or wry observation about the content (NOT about processing speed, efficiency, or data analysis capabilities). The goal is to sound like a highly knowledgeable human editor with a dry sense of humor and exceptional subject matter expertise.
 
       IMPORTANT: You MUST include specific insights, details and examples from the provided analyses - not generic summaries. Use actual names, numbers, and quotes when available. The newsletter should feel like a premium filter that only presents genuinely valuable information.
 
@@ -290,21 +302,21 @@ Your cross-subreddit digest is ready. Here's what's trending across r/${subreddi
 
 ---
 
-That's all for today's multi-subreddit digest. We've analyzed ${subreddits.length} subreddits in ${(Math.random() * 0.1 + 0.01).toFixed(2)} seconds.
+That's all for today's digest. Your next update will arrive at the same time tomorrow.
 
 Stay informed,
 The Reddit Insight Team
 `;
     
     // Save newsletter to file
-    const newsletterPath = path.join(runDir, `${subreddits.join('_')}_newsletter_${recipientName || 'all'}.md`);
+    const newsletterPath = path.join(runDir, `topic_digest_${recipientName || 'all'}.md`);
     fs.writeFileSync(newsletterPath, newsletter);
-    console.log(`Combined newsletter saved to ${newsletterPath}`);
+    console.log(`Topic-based digest saved to ${newsletterPath}`);
     
     return newsletter;
   } catch (error) {
-    console.error(`Error generating combined newsletter: ${error.message}`);
-    return `Error generating combined newsletter: ${error.message}`;
+    console.error(`Error generating topic-based digest: ${error.message}`);
+    return `Error generating topic-based digest: ${error.message}`;
   }
 }
 
