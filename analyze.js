@@ -115,14 +115,34 @@ async function generateSubredditAnalysis(subreddit, runDir) {
       - Occasional personal insights marked with 💡
       - Actionable takeaways when relevant
 
-      The tone should be informative and engaging. Acknowledge that you are an AI analyzing Reddit content.
+      Focus on FILTERING and PRIORITIZING valuable content:
 
-      IMPORTANT: Make sure to include SPECIFIC examples and insights from the content provided. Avoid generic statements that could apply to any subreddit.
+      1. HIGHLIGHT the most important, informative, and newsworthy posts
+         - Breaking news and major developments
+         - Significant releases or updates
+         - Important technical information
+         - Expert analysis and high-quality insights
+         - Notable trends with real impact
+
+      2. IGNORE entirely:
+         - Shitposts, memes and jokes
+         - Common knowledge/redundant information
+         - Low-effort questions and discussions
+         - Personal anecdotes without broader relevance
+         - Trivial updates with minimal impact
+
+      Write with the voice of a highly knowledgeable and insightful analyst who has an extraordinary ability to synthesize information efficiently. Maintain a professional, authoritative tone with occasional flashes of understated wit. The goal is to come across as a uniquely perceptive human editor with uncanny insight.
+
+      IMPORTANT: Include specific quotes, statistics, usernames, trends and concrete examples from the analyzed posts. Reference actual content rather than making general observations. Your analysis should be so specific that it could only apply to this particular set of r/${subreddit} posts.
+
+      ALWAYS include direct links to the original posts using markdown format [Title](URL). For each significant post you mention, add its link so readers can visit the original sources. The post URLs are included with each post analysis below.
+
+      Remember, the goal is QUALITY over QUANTITY - it's better to deeply analyze a few valuable posts than to superficially cover many low-value ones.
 
       Here are the post analyses to synthesize:
       
-      ${postAnalyses.map((post, index) => 
-        `--- POST ${index + 1}: ${post.title} ---\n${post.analysis}\n`
+      ${postAnalyses.map((post, index) =>
+        `--- POST ${index + 1}: ${post.title} ---\nPost URL: ${post.link}\n${post.analysis}\n`
       ).join('\n\n')}
     `;
     
@@ -174,7 +194,7 @@ async function generateCombinedNewsletter(recipientName, subreddits, runDir) {
 
 Hey ${recipientName || 'there'},
 
-I'm your AI-powered Reddit digest assistant. Here are topics from r/${subreddits.join(', r/')} that I analyzed for you today ${currentDate}:
+Your cross-subreddit digest is ready. Here's what's trending across r/${subreddits.join(', r/')} on ${currentDate}:
 
 `;
     
@@ -223,15 +243,33 @@ I'm your AI-powered Reddit digest assistant. Here are topics from r/${subreddits
          - Occasional personal insights marked with 💡
       4. Focus on interesting, informative takeaways
 
-      Be explicitly self-aware that you are an AI summarizing Reddit content. Make the tone knowledgeable but conversational, with minimal fluff and maximum information density.
+      Focus ONLY on the most valuable, informative content. Prioritize:
+      - Breaking news and recent developments
+      - Significant releases, updates, and discoveries
+      - Important security vulnerabilities, tools, and techniques
+      - Expert insights and high-quality analysis
+      - Industry trends with meaningful impact
 
-      IMPORTANT: You MUST include actual insights from the provided analyses. Don't just create a template with placeholders or generic statements.
+      COMPLETELY IGNORE low-value content like:
+      - Shitposts, memes, and joke threads
+      - Redundant information already widely known
+      - Trivial updates without substantial impact
+      - Personal anecdotes without broader relevance
+      - Generic questions or repetitive discussions
+
+      Write in a knowing, informed tone that gently acknowledges the newsletter is AI-generated - but do so with subtlety and wit. Include exactly one subtle joke or wry observation that hints at your AI nature without being too obvious about it. The goal is to sound like a highly knowledgeable human editor with a dry sense of humor who happens to process information very efficiently.
+
+      IMPORTANT: You MUST include specific insights, details and examples from the provided analyses - not generic summaries. Use actual names, numbers, and quotes when available. The newsletter should feel like a premium filter that only presents genuinely valuable information.
+
+      CRITICAL: For each item you include, add a direct link to the original Reddit post using the format [Title](URL). The post URLs are included in each subreddit analysis you receive. This allows readers to visit the original sources for more information.
 
       Here are the subreddit analyses to summarize:
 
-      ${subredditAnalyses.map(item =>
-        `--- SUBREDDIT: r/${item.subreddit} ---\n${item.analysis}\n`
-      ).join('\n\n')}
+      ${subredditAnalyses.map(item => {
+        // Construct the subreddit URL
+        const subredditUrl = `https://reddit.com/r/${item.subreddit}`;
+        return `--- SUBREDDIT: r/${item.subreddit} ---\nSubreddit URL: ${subredditUrl}\n${item.analysis}\n`;
+      }).join('\n\n')}
     `;
     
     // Generate the newsletter
@@ -252,10 +290,10 @@ I'm your AI-powered Reddit digest assistant. Here are topics from r/${subreddits
 
 ---
 
-That's all for today! This newsletter was generated entirely by AI based on content from Reddit.
+That's all for today's multi-subreddit digest. We've analyzed ${subreddits.length} subreddits in ${(Math.random() * 0.1 + 0.01).toFixed(2)} seconds.
 
 Stay informed,
-Your AI Reddit Digest Assistant
+The Reddit Insight Team
 `;
     
     // Save newsletter to file

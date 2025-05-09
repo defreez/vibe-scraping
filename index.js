@@ -21,7 +21,7 @@ const IMAGE_MODEL = 'gpt-4.1-mini';  // Model used for image analysis and articl
 const ANALYSIS_MODEL = 'gpt-4.1';    // Model used for in-depth article/comment analysis
 const SUMMARY_MODEL = 'gpt-4.1'; // Model used for quick one-word summaries
 const DEFAULT_SUBREDDITS = ['news', 'ashland'];
-const POSTS_PER_SUBREDDIT = 10;  // Number of posts to scrape per subreddit (can be modified)
+const POSTS_PER_SUBREDDIT = 5;  // Number of posts to scrape per subreddit (can be modified)
 
 // Prompt Templates
 const ARTICLE_EXTRACTION_PROMPT_TEMPLATE = `Analyze this webpage screenshot and extract the main article content. 
@@ -77,7 +77,7 @@ const NEWSLETTER_INTRO_TEMPLATE = `# tl;dr {subreddit}
 
 Hey {recipient_name},
 
-I'm your AI-powered Reddit digest for r/{subreddit}. Here are topics I found that might interest you today {date}:
+Your personalized Reddit digest for r/{subreddit} is ready. Here are today's notable topics from {date} that align with your interests:
 
 `;
 
@@ -772,12 +772,38 @@ async function generateNewsletter(recipientName, subreddit, runDir) {
 
       // Extract key points from analysis for newsletter
       const newsletterPrompt = `
-        I need a newsletter summary for this Reddit content analysis.
-        Write a concise headline + 2-4 sentence summary that captures the key points and insights.
+        I need a high-quality newsletter summary for this Reddit content analysis.
+
+        First, evaluate if this content is truly worth including:
+
+        INCLUDE content that is:
+        - Breaking news or major developments
+        - Significant releases or technical updates
+        - Expert analyses with valuable insights
+        - Important security or industry information
+        - Novel ideas or concepts of substantial interest
+
+        EXCLUDE entirely any content that is:
+        - Memes, jokes, or shitposts
+        - Common knowledge or redundant information
+        - Low-effort questions or discussions
+        - Personal anecdotes without broader relevance
+        - Trivial updates with minimal impact
+
+        If the content meets the quality threshold, write a concise headline + 2-4 sentence summary.
         Include a single emoji at the start that represents the content.
         Start with a ## heading with a catchy title.
 
-        Be self-aware that you're an AI summarizing Reddit content, and occasionally reference this fact in an appropriate way.
+        IMPORTANT: Always include a direct link to the original Reddit post in your summary using the markdown format [Title](${metadata.link})
+
+        The link format should be:
+        - Title should be a very short (2-5 words) version of the headline
+        - The link itself should be the original post URL: ${metadata.link}
+        - Place this link either at the beginning or end of your summary
+
+        If the content does NOT meet the quality threshold, respond with "LOW_VALUE_CONTENT" and I'll skip this post.
+
+        Write as if you're a highly perceptive human editor with extraordinary analytical abilities and a subtle, dry sense of humor. Don't explicitly state you're AI, but you may include one subtle hint or wry observation that suggests your unusually efficient information processing. The tone should be knowledgeable, authoritative, and slightly witty.
 
         Here's the analysis:
         ${analysisText}
@@ -793,18 +819,23 @@ async function generateNewsletter(recipientName, subreddit, runDir) {
         }]
       });
 
-      // Add section to newsletter
-      newsletter += response.output_text + '\n\n';
+      // Check if content is high enough quality to include
+      if (response.output_text.trim() === "LOW_VALUE_CONTENT") {
+        console.log(`Skipping low-value content: ${metadata.title}`);
+      } else {
+        // Add high-quality section to newsletter
+        newsletter += response.output_text + '\n\n';
+      }
     }
 
     // Add footer
     newsletter += `
 ---
 
-That's all for today! This newsletter was generated entirely by AI based on content from r/${subreddit}.
+That's all for today's r/${subreddit} digest. Your next update will arrive at the same time tomorrow.
 
 Stay informed,
-Your AI Reddit Digest Assistant
+The Reddit Insight Team
 `;
 
     // Save newsletter to file
