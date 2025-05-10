@@ -251,7 +251,6 @@ async function processAllAnalyses(runDir, recipientName = null, reportType = rep
     const subreddits = fs.readdirSync(runDir)
       .filter(item => 
         fs.statSync(path.join(runDir, item)).isDirectory() && 
-        item !== 'screenshots' && 
         !item.startsWith('.')
       );
     

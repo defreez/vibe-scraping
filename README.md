@@ -1,28 +1,14 @@
 # Vibe Scraping
 
-<img src="logo.png" alt="Vibe Scraping Logo" width="300"/>
+This is Vibe Scraping. It's a hobby Reddit link scraper I started 
+making while my OS students were taking a midterm. It's primary purpose was to demonstrate that web scraping is a fun and easy 
+target for vibe coding. For that reason we scrape reddit.com directly instead old.reddit.com. 
 
-This is Vibe Scraping.
+Thea idea of vibe scraping is that writing traditional scrapers is an unpleasant and fragile experience. However, computer vision has
+come a long ways. So we just grab a screenshot, send it to GPT for
+analysis, and move on. Most of the time it works, sometimes it doesn't, it's vibe scraping!
 
-## What is Web Scraping?
-
-Web scraping is the automated process of extracting data from websites. It involves programmatically accessing web pages, parsing their content, and collecting specific information in a structured format for analysis, storage, or other purposes.
-
-## What This Tool Does
-
-Vibe Scraping is a web content analysis tool that:
-
-1. **Automated Content Collection**: Uses Puppeteer (headless Chrome browser) to navigate to Reddit subreddits and follow links
-2. **DOM Interaction**: Extracts structured data from Reddit's custom web components (post titles, comments, permalinks)
-3. **Full-Page Capturing**: Takes screenshots of Reddit posts *and* external linked articles
-4. **Multi-level Extraction**:
-   - Grabs subreddits of your choice
-   - Pulls the top posts from each subreddit
-   - Extracts post metadata, comments, and user interactions
-   - Follows external links to capture original source content
-5. **Report Generation**: Creates structured, categorized reports based on configured templates
-
-Perfect for "Market research"
+Perfect for all of your "Market research"
 
 ## 📋 Prerequisites
 
@@ -65,42 +51,42 @@ vibe-scrape programming worldnews technology
 
 ## 📊 Report Types
 
-Two report types are available with vibe-analyze, each with unique focus and style:
+Two report types are available with vibe-report, each with unique focus and style:
 
 1. **Newsletter** (default) - General information digest with key highlights and summaries
-2. **Literature Review** - Formal academic literature review following systematic review methodology
+2. **Academic** - Literature review format for more formal analysis
 
-Report types are selected when analyzing data, not during scraping:
+Report types are selected when generating reports, not during scraping:
 ```bash
 # Generate newsletter style report (default)
-vibe-analyze ./data/raw/20250508_123456
+vibe-report ./data/raw/20250508_123456
 
-# Generate literature review style report
-vibe-analyze ./data/raw/20250508_123456 --type academic
+# Generate academic style report
+vibe-report ./data/raw/20250508_123456 --type academic
 ```
 
 ## 🔍 Analyzing Existing Data
 
-You can run analysis on previously scraped content:
+You can generate reports from previously scraped content:
 
 ```bash
 # Get help with command-line options
-vibe-analyze --help
+vibe-report --help
 
 # Basic usage (requires raw data directory path)
-vibe-analyze ./data/raw/TIMESTAMP_DIRECTORY
+vibe-report ./data/raw/TIMESTAMP_DIRECTORY
 
 # Using npm run script
-npm run analyze -- ./data/raw/TIMESTAMP_DIRECTORY
+npm run report -- ./data/raw/TIMESTAMP_DIRECTORY
 
 # Generate a specific report type from existing data
-vibe-analyze ./data/raw/TIMESTAMP_DIRECTORY --type academic
+vibe-report ./data/raw/TIMESTAMP_DIRECTORY --type academic
 
 # Add recipient name for personalized reports
-vibe-analyze ./data/raw/TIMESTAMP_DIRECTORY --recipient "Charlie"
+vibe-report ./data/raw/TIMESTAMP_DIRECTORY --recipient "Charlie"
 
 # Combine options
-vibe-analyze ./data/raw/TIMESTAMP_DIRECTORY --type academic --recipient "Charlie"
+vibe-report ./data/raw/TIMESTAMP_DIRECTORY --type academic --recipient "Charlie"
 ```
 
 ## 🗂️ Project Structure
@@ -109,7 +95,7 @@ vibe-analyze ./data/raw/TIMESTAMP_DIRECTORY --type academic --recipient "Charlie
 /
 ├── bin/                  # Executable CLI scripts
 │   ├── vibe-scrape       # Main scraping command
-│   └── vibe-analyze      # Analysis command for existing outputs
+│   └── vibe-report       # Report generation command for existing data
 ├── src/                  # Source code
 │   ├── scrape.js         # Scraping functionality
 │   ├── analyze.js        # Analysis functionality
@@ -117,7 +103,6 @@ vibe-analyze ./data/raw/TIMESTAMP_DIRECTORY --type academic --recipient "Charlie
 ├── data/                 # Data directories
 │   ├── raw/              # Raw scraped data (gitignored)
 │   └── reports/          # Generated reports (gitignored)
-└── package.json          # Project configuration
 ```
 
 ## 📦 Output Structure
@@ -127,7 +112,8 @@ data/
   ├── raw/                                # Raw scraped data
   │   └── TIMESTAMP/                      # Run timestamp
   │       └── SUBREDDIT/                  # Each subreddit gets a directory
-  │           ├── screenshots/            # Screenshots of the subreddit
+  │           ├── main_page.png           # Screenshot of the subreddit's main page
+  │           ├── page.html               # HTML content of the subreddit's main page
   │           └── post_#_keyword_phrase/  # Each post gets its own directory
   │               ├── metadata.json       # Post metadata
   │               ├── comments.json       # Extracted comments
@@ -152,7 +138,6 @@ Edit these constants in `src/scrape.js` to customize:
 
 ```javascript
 // Constants
-const USER_AGENT = '...';  // Browser user agent
 const IMAGE_MODEL = 'gpt-4.1-mini';  // For extracting article text
 const ANALYSIS_MODEL = 'gpt-4.1';    // For deeper analysis
 const SUMMARY_MODEL = 'gpt-4.1';     // For generating folder names

@@ -456,15 +456,11 @@ async function processSubreddit(browser, subreddit, baseOutputDir, postsPerSubre
     const subredditDir = path.join(baseOutputDir, subreddit);
     fs.mkdirSync(subredditDir, { recursive: true });
 
-    // Create a shared screenshots directory for the main page
-    const sharedScreenshotsDir = path.join(subredditDir, 'screenshots');
-    fs.mkdirSync(sharedScreenshotsDir, { recursive: true });
-
-    // Take a full page screenshot of the main page
+    // Take a full page screenshot of the main page directly in the subreddit directory
     console.log('Taking full page screenshot of main page...');
-    const mainPageScreenshotPath = path.join(sharedScreenshotsDir, 'main_page.png');
+    const mainPageScreenshotPath = path.join(subredditDir, 'main_page.png');
     await page.screenshot({ path: mainPageScreenshotPath, fullPage: true });
-    console.log(`Main page screenshot saved in ${sharedScreenshotsDir}`);
+    console.log(`Main page screenshot saved in ${subredditDir}`);
 
     // Get the full HTML
     console.log('Dumping complete HTML content...');
