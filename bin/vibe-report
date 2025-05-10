@@ -14,12 +14,14 @@ if (require.main === module) {
   // Check for help flag
   if (process.argv.includes('-h') || process.argv.includes('--help')) {
     console.log(`
-Vibe Scraping - Report Generation for Existing Data
+Vibe Scraping - Hierarchical Analysis & Report Generation
 
 DESCRIPTION:
   This command generates reports from EXISTING data that was previously collected by vibe-scrape.
-  It creates subreddit-level analyses and combined reports without scraping new content.
-  Use this on directories that were previously created by vibe-scrape.
+  It creates subreddit-level analyses and combined reports by integrating individual post analyses.
+
+  vibe-scrape: Collects data and creates individual post analyses
+  vibe-report: Generates hierarchical analyses and final reports
 
 Usage: vibe-report <run_directory> [options]
 

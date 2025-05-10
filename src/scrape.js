@@ -534,9 +534,8 @@ async function processSubreddit(browser, subreddit, baseOutputDir, postsPerSubre
           const postDir = path.join(subredditDir, dirName);
           fs.mkdirSync(postDir, { recursive: true });
 
-          // Create post-specific screenshots directory
-          const postScreenshotsDir = path.join(postDir, 'screenshots');
-          fs.mkdirSync(postScreenshotsDir, { recursive: true });
+          // All files will be stored directly in the post directory
+          const postScreenshotsDir = postDir; // For compatibility with any remaining references
 
           // Save post metadata
           fs.writeFileSync(
@@ -562,7 +561,7 @@ async function processSubreddit(browser, subreddit, baseOutputDir, postsPerSubre
           });
 
           // Create a safe filename for the screenshot
-          const screenshotPath = path.join(postScreenshotsDir, 'post.png');
+          const screenshotPath = path.join(postDir, 'post.png');
 
           // Take a screenshot
           console.log('Taking screenshot of post page...');
@@ -586,16 +585,13 @@ async function processSubreddit(browser, subreddit, baseOutputDir, postsPerSubre
 
           // Variable to hold article text - may be populated from external link if available
           let articleText = '';
-          let externalDir = '';
 
           // If this is a link post, follow the external link and take a screenshot
           if (post.isLinkPost && post.externalLink) {
             console.log(`This is a link post. Following external link: ${post.externalLink}`);
 
             try {
-              // Create an external content directory
-              externalDir = path.join(postDir, 'external');
-              fs.mkdirSync(externalDir, { recursive: true });
+              // External content will be stored directly in the post directory
 
               // Create a new page for the external link
               const externalPage = await browser.newPage();
@@ -611,13 +607,13 @@ async function processSubreddit(browser, subreddit, baseOutputDir, postsPerSubre
               // Scroll the external page to load more content
               console.log('Scrolling external link page to load more content...');
               await autoScroll(externalPage);
-              
+
               // Wait longer for dynamic content to fully load (images, JS, etc.)
               console.log('Waiting for additional content to load (5 seconds)...');
               await new Promise(resolve => setTimeout(resolve, 5000));
-              
+
               // Take a screenshot of the external link page
-              const externalScreenshotPath = path.join(postScreenshotsDir, 'external.png');
+              const externalScreenshotPath = path.join(postDir, 'external.png');
 
               console.log('Taking screenshot of external link...');
               await externalPage.screenshot({ path: externalScreenshotPath, fullPage: true });
@@ -625,7 +621,7 @@ async function processSubreddit(browser, subreddit, baseOutputDir, postsPerSubre
 
               // Save external link HTML
               const externalHtml = await externalPage.content();
-              fs.writeFileSync(path.join(externalDir, 'external.html'), externalHtml);
+              fs.writeFileSync(path.join(postDir, 'external.html'), externalHtml);
 
               // Analyze the screenshot with GPT-4.1-mini to extract article text
               console.log('Analyzing external link screenshot with GPT-4.1-mini...');
@@ -635,8 +631,8 @@ async function processSubreddit(browser, subreddit, baseOutputDir, postsPerSubre
               articleText = await analyzeImage(externalScreenshotPath, extractionPrompt);
 
               // Save extracted article text
-              fs.writeFileSync(path.join(externalDir, 'article.txt'), articleText);
-              console.log(`Article text analysis saved to ${externalDir}/article.txt`);
+              fs.writeFileSync(path.join(postDir, 'article.txt'), articleText);
+              console.log(`Article text analysis saved to ${postDir}/article.txt`);
 
               // Close the external page
               await externalPage.close();
@@ -645,14 +641,8 @@ async function processSubreddit(browser, subreddit, baseOutputDir, postsPerSubre
               // We'll continue with analysis even if external link fails
               articleText = 'Unable to access external link: ' + error.message;
               
-              // Create external directory if it doesn't exist yet
-              if (!externalDir) {
-                externalDir = path.join(postDir, 'external');
-                fs.mkdirSync(externalDir, { recursive: true });
-              }
-              
               // Save error as article text
-              fs.writeFileSync(path.join(externalDir, 'article.txt'), articleText);
+              fs.writeFileSync(path.join(postDir, 'article.txt'), articleText);
             }
           }
 
@@ -879,7 +869,7 @@ async function main() {
   const browser = await puppeteer.launch({ headless: "new" });
 
   try {
-    // Process each subreddit
+    // Process each subreddit - collect and analyze individual posts only
     for (const subreddit of subreddits) {
       await processSubreddit(browser, subreddit, baseOutputDir, postsPerSubreddit);
     }
@@ -887,7 +877,8 @@ async function main() {
     console.log(`\n====================================`);
     console.log(`All subreddits processed successfully!`);
     console.log(`Raw data saved to: data/raw/${runId}/`);
-    console.log(`Use vibe-report to generate reports from this data.`);
+    console.log(`Use vibe-report to generate hierarchical analyses and reports:`);
+    console.log(`vibe-report ./data/raw/${runId} [--recipient Name] [--type newsletter|academic]`);
     console.log(`====================================`);
   } catch (error) {
     console.error('An error occurred during processing:', error);

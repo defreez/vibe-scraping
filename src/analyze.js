@@ -1,10 +1,12 @@
 /**
- * analyze.js - Additional analysis utilities for the vibe-scraping project
- * 
- * This module adds hierarchical analysis functionality to create:
- * 1. Individual post analysis (from index.js)
- * 2. Subreddit-level analysis (combining all posts)
- * 3. Combined newsletter across all subreddits
+ * analyze.js - Hierarchical analysis utilities for the vibe-scraping project
+ *
+ * This module generates hierarchical analyses and reports from existing raw data:
+ * 1. Subreddit-level analysis (combining individual post analyses)
+ * 2. Combined newsletter across all subreddits
+ *
+ * Note: Individual post analyses are created in scrape.js during data collection.
+ * This module only handles multi-post analytics and report generation.
  */
 
 const fs = require('fs');
@@ -151,11 +153,14 @@ async function generateCombinedNewsletter(recipientName, subreddits, runDir, rep
       day: 'numeric'
     });
 
+    // For combined report, use a list of all subreddits
+    const subredditList = subreddits.map(s => `r/${s}`).join(', ');
+
     // Create newsletter intro using the template from report config
     let newsletter = reportConfig.newsletterIntro
       .replace(/{recipient_name}/g, recipientName || 'there')
       .replace(/{date}/g, currentDate)
-      .replace(/{subreddit}/g, 'combined');
+      .replace(/{subreddit}/g, subredditList);
     
     // Process each subreddit
     const subredditAnalyses = [];
@@ -240,7 +245,7 @@ async function generateCombinedNewsletter(recipientName, subreddits, runDir, rep
  */
 async function processAllAnalyses(runDir, recipientName = null, reportType = reports.DEFAULT_REPORT_TYPE) {
   try {
-    console.log(`\nProcessing additional analyses for output directory: ${runDir}`);
+    console.log(`\nGenerating reports from existing raw data in: ${runDir}`);
     
     // Find all subreddit directories
     const subreddits = fs.readdirSync(runDir)

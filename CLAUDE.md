@@ -101,7 +101,7 @@ The main workflow:
 4. If external links fail, it still proceeds with analysis using the post screenshot and comments
 5. Has robust error handling for each step to ensure analysis completes for all post types
 
-Output is organized by timestamp and subreddit, with each post getting its own directory named with an AI-generated keyword phrase.
+Output is organized by timestamp and subreddit, with each post getting its own directory named with an AI-generated keyword phrase. All files for a post (screenshots, HTML, text) are stored directly in its directory for simplified access.
 
 ## Key Components
 

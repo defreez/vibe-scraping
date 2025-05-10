@@ -132,11 +132,10 @@ data/
   │               ├── metadata.json       # Post metadata
   │               ├── comments.json       # Extracted comments
   │               ├── analysis.md         # AI analysis of post and comments
-  │               ├── screenshots/        # Screenshots for this post
-  │               │   ├── post.png        # Reddit post screenshot
-  │               │   └── external.png    # External link screenshot
-  │               └── external/           # External content
-  │                   └── article.txt     # Extracted article text
+  │               ├── post.png            # Reddit post screenshot
+  │               ├── external.png        # External link screenshot (if applicable)
+  │               ├── external.html       # External link HTML (if applicable)
+  │               └── article.txt         # Extracted article text (if applicable)
   │
   └── reports/                            # Generated reports
       └── TIMESTAMP/                      # Run timestamp (matches raw data)
