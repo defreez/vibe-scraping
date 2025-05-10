@@ -1,7 +1,7 @@
 # Vibe Scraping
 
 This is Vibe Scraping. It's a hobby Reddit link scraper I started 
-making while my OS students were taking a midterm. It's primary purpose was to demonstrate that web scraping is a fun and easy 
+making while my OS students were taking a midterm. Its primary purpose was to demonstrate that web scraping is a fun and easy 
 target for vibe coding. For that reason we scrape reddit.com directly instead old.reddit.com. 
 
 Thea idea of vibe scraping is that writing traditional scrapers is an unpleasant and fragile experience. However, computer vision has
