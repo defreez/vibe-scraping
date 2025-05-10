@@ -13,14 +13,16 @@ const fs = require('fs');
 const path = require('path');
 const { OpenAI } = require('openai');
 const sharp = require('sharp');
+const analyze = require('./analyze');
+const reports = require('./reports');
 
 // Constants
 const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36';
 const IMAGE_MODEL = 'gpt-4.1-mini';  // Model used for image analysis and article extraction
 const ANALYSIS_MODEL = 'gpt-4.1';    // Model used for in-depth article/comment analysis
 const SUMMARY_MODEL = 'gpt-4.1'; // Model used for quick one-word summaries
-const DEFAULT_SUBREDDITS = ['news', 'ashland'];
-const POSTS_PER_SUBREDDIT = 10;  // Number of posts to scrape per subreddit (can be modified)
+// No default subreddits - they must be specified
+const POSTS_PER_SUBREDDIT = 3;  // Number of posts to scrape per subreddit (can be modified)
 
 // Prompt Templates
 const ARTICLE_EXTRACTION_PROMPT_TEMPLATE = `Analyze this webpage screenshot and extract the main article content. 
@@ -68,7 +70,10 @@ If the post contains an image, describe what's in the image and how it relates t
 
 Start your analysis with a bold heading that includes the post title.
 Format your analysis in clear sections with descriptive headers.
+Use the style of a concise, informative newsletter like tl;dr sec.
 `;
+
+// Template variables will be loaded from reports.js based on report type
 
 // Initialize OpenAI client - will use environment variable OPENAI_API_KEY
 const openai = new OpenAI();
@@ -422,9 +427,10 @@ async function autoScroll(page) {
  * @param {Browser} browser - Puppeteer browser instance
  * @param {string} subreddit - Subreddit name to scrape
  * @param {string} baseOutputDir - Base output directory for this run
+ * @param {number} postsPerSubreddit - Number of posts to scrape per subreddit
  * @returns {Promise<void>}
  */
-async function processSubreddit(browser, subreddit, baseOutputDir) {
+async function processSubreddit(browser, subreddit, baseOutputDir, postsPerSubreddit = POSTS_PER_SUBREDDIT) {
   console.log(`\n========== Processing r/${subreddit} ==========`);
   
   try {
@@ -497,7 +503,7 @@ async function processSubreddit(browser, subreddit, baseOutputDir) {
     });
 
     // Limit to configured number of posts per subreddit
-    const postsToVisit = postsData.slice(0, POSTS_PER_SUBREDDIT);
+    const postsToVisit = postsData.slice(0, postsPerSubreddit);
 
     // Save the extracted post data to JSON file
     fs.writeFileSync(path.join(subredditDir, 'posts.json'), JSON.stringify(postsData, null, 2));
@@ -528,9 +534,8 @@ async function processSubreddit(browser, subreddit, baseOutputDir) {
           const postDir = path.join(subredditDir, dirName);
           fs.mkdirSync(postDir, { recursive: true });
 
-          // Create post-specific screenshots directory
-          const postScreenshotsDir = path.join(postDir, 'screenshots');
-          fs.mkdirSync(postScreenshotsDir, { recursive: true });
+          // All files will be stored directly in the post directory
+          const postScreenshotsDir = postDir; // For compatibility with any remaining references
 
           // Save post metadata
           fs.writeFileSync(
@@ -556,7 +561,7 @@ async function processSubreddit(browser, subreddit, baseOutputDir) {
           });
 
           // Create a safe filename for the screenshot
-          const screenshotPath = path.join(postScreenshotsDir, 'post.png');
+          const screenshotPath = path.join(postDir, 'post.png');
 
           // Take a screenshot
           console.log('Taking screenshot of post page...');
@@ -580,16 +585,13 @@ async function processSubreddit(browser, subreddit, baseOutputDir) {
 
           // Variable to hold article text - may be populated from external link if available
           let articleText = '';
-          let externalDir = '';
 
           // If this is a link post, follow the external link and take a screenshot
           if (post.isLinkPost && post.externalLink) {
             console.log(`This is a link post. Following external link: ${post.externalLink}`);
 
             try {
-              // Create an external content directory
-              externalDir = path.join(postDir, 'external');
-              fs.mkdirSync(externalDir, { recursive: true });
+              // External content will be stored directly in the post directory
 
               // Create a new page for the external link
               const externalPage = await browser.newPage();
@@ -605,13 +607,13 @@ async function processSubreddit(browser, subreddit, baseOutputDir) {
               // Scroll the external page to load more content
               console.log('Scrolling external link page to load more content...');
               await autoScroll(externalPage);
-              
+
               // Wait longer for dynamic content to fully load (images, JS, etc.)
               console.log('Waiting for additional content to load (5 seconds)...');
               await new Promise(resolve => setTimeout(resolve, 5000));
-              
+
               // Take a screenshot of the external link page
-              const externalScreenshotPath = path.join(postScreenshotsDir, 'external.png');
+              const externalScreenshotPath = path.join(postDir, 'external.png');
 
               console.log('Taking screenshot of external link...');
               await externalPage.screenshot({ path: externalScreenshotPath, fullPage: true });
@@ -619,7 +621,7 @@ async function processSubreddit(browser, subreddit, baseOutputDir) {
 
               // Save external link HTML
               const externalHtml = await externalPage.content();
-              fs.writeFileSync(path.join(externalDir, 'external.html'), externalHtml);
+              fs.writeFileSync(path.join(postDir, 'external.html'), externalHtml);
 
               // Analyze the screenshot with GPT-4.1-mini to extract article text
               console.log('Analyzing external link screenshot with GPT-4.1-mini...');
@@ -629,8 +631,8 @@ async function processSubreddit(browser, subreddit, baseOutputDir) {
               articleText = await analyzeImage(externalScreenshotPath, extractionPrompt);
 
               // Save extracted article text
-              fs.writeFileSync(path.join(externalDir, 'article.txt'), articleText);
-              console.log(`Article text analysis saved to ${externalDir}/article.txt`);
+              fs.writeFileSync(path.join(postDir, 'article.txt'), articleText);
+              console.log(`Article text analysis saved to ${postDir}/article.txt`);
 
               // Close the external page
               await externalPage.close();
@@ -639,14 +641,8 @@ async function processSubreddit(browser, subreddit, baseOutputDir) {
               // We'll continue with analysis even if external link fails
               articleText = 'Unable to access external link: ' + error.message;
               
-              // Create external directory if it doesn't exist yet
-              if (!externalDir) {
-                externalDir = path.join(postDir, 'external');
-                fs.mkdirSync(externalDir, { recursive: true });
-              }
-              
               // Save error as article text
-              fs.writeFileSync(path.join(externalDir, 'article.txt'), articleText);
+              fs.writeFileSync(path.join(postDir, 'article.txt'), articleText);
             }
           }
 
@@ -663,9 +659,9 @@ async function processSubreddit(browser, subreddit, baseOutputDir) {
               screenshotPath // Pass the post screenshot path
             );
 
-            // Save the combined analysis
-            fs.writeFileSync(path.join(postDir, 'analysis.txt'), analysis);
-            console.log(`Combined analysis saved to ${postDir}/analysis.txt`);
+            // Save the combined analysis in markdown format
+            fs.writeFileSync(path.join(postDir, 'analysis.md'), analysis);
+            console.log(`Combined analysis saved to ${postDir}/analysis.md`);
           } catch (analysisError) {
             console.error(`Error analyzing post ${i + 1}: ${analysisError.message}`);
           }
@@ -690,17 +686,173 @@ async function processSubreddit(browser, subreddit, baseOutputDir) {
   }
 }
 
-async function main() {
-  // Get subreddits from command line or use defaults
-  let subreddits = DEFAULT_SUBREDDITS;
-  
-  // If command line arguments are provided, use them as subreddits
-  if (process.argv.length > 2) {
-    subreddits = process.argv.slice(2);
+/**
+ * Generate a newsletter from the analysis results based on report type
+ * @param {string|null} recipientName - Name of the recipient for personalization (optional)
+ * @param {string} subreddit - Name of the subreddit
+ * @param {string} runDir - Directory containing the run data
+ * @param {object} reportConfig - The report configuration to use
+ * @returns {Promise<string>} Newsletter content
+ */
+async function generateNewsletter(recipientName, subreddit, runDir, reportConfig) {
+  try {
+    console.log(`Generating ${reportConfig.name} for ${recipientName || 'all users'} from r/${subreddit}...`);
+
+    // Get the subreddit directory
+    const subredditDir = path.join(runDir, subreddit);
+
+    // Check if directory exists
+    if (!fs.existsSync(subredditDir)) {
+      throw new Error(`Subreddit directory not found: ${subredditDir}`);
+    }
+
+    // Get all post directories
+    const postDirs = fs.readdirSync(subredditDir)
+      .filter(item => item.startsWith('post_') &&
+              fs.statSync(path.join(subredditDir, item)).isDirectory());
+
+    if (postDirs.length === 0) {
+      throw new Error(`No post directories found in ${subredditDir}`);
+    }
+
+    // Current date for newsletter
+    const currentDate = new Date().toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    // Create newsletter intro using the template from report config
+    let newsletter = reportConfig.newsletterIntro
+      .replace('{recipient_name}', recipientName || 'there')
+      .replace('{subreddit}', subreddit)
+      .replace('{date}', currentDate);
+
+    // Process each post
+    for (const postDir of postDirs) {
+      const fullPostDir = path.join(subredditDir, postDir);
+
+      // Get post metadata
+      const metadataPath = path.join(fullPostDir, 'metadata.json');
+      if (!fs.existsSync(metadataPath)) {
+        console.warn(`Metadata not found for ${postDir}, skipping`);
+        continue;
+      }
+
+      const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+
+      // Get analysis (checking for .md first, then .txt as fallback)
+      let analysisText;
+      const analysisMdPath = path.join(fullPostDir, 'analysis.md');
+      const analysisTxtPath = path.join(fullPostDir, 'analysis.txt');
+
+      if (fs.existsSync(analysisMdPath)) {
+        analysisText = fs.readFileSync(analysisMdPath, 'utf8');
+      } else if (fs.existsSync(analysisTxtPath)) {
+        analysisText = fs.readFileSync(analysisTxtPath, 'utf8');
+      } else {
+        console.warn(`No analysis found for ${postDir}, skipping`);
+        continue;
+      }
+
+      // Extract key points from analysis for newsletter using the configured template
+      const newsletterPrompt = reportConfig.newsletterItemPrompt
+        .replace('{postLink}', metadata.link)
+        .replace('{analysisText}', analysisText);
+
+      // Generate the newsletter section
+      console.log(`Generating newsletter section for ${metadata.title}...`);
+      const response = await openai.responses.create({
+        model: SUMMARY_MODEL,
+        input: [{
+          role: "user",
+          content: [{ type: "input_text", text: newsletterPrompt }]
+        }]
+      });
+
+      // Check if content is high enough quality to include
+      if (response.output_text.trim() === "LOW_VALUE_CONTENT") {
+        console.log(`Skipping low-value content: ${metadata.title}`);
+      } else {
+        // Add high-quality section to newsletter
+        newsletter += response.output_text + '\n\n';
+      }
+    }
+
+    // Add footer from the report config
+    newsletter += reportConfig.combinedNewsletterFooter
+      .replace('{subreddit}', subreddit);
+
+    // Save report to file with report type in the filename
+    const reportType = reportConfig.name.toLowerCase().replace(/\s+/g, '_');
+
+    // Create reports directory for this run
+    const reportsDir = path.join('data', 'reports', path.basename(runDir));
+    fs.mkdirSync(reportsDir, { recursive: true });
+
+    const newsletterPath = path.join(reportsDir, `${subreddit}_${reportType}_${recipientName || 'default'}.md`);
+    fs.writeFileSync(newsletterPath, newsletter);
+    console.log(`${reportConfig.name} saved to ${newsletterPath}`);
+
+    return newsletter;
+  } catch (error) {
+    console.error(`Error generating newsletter: ${error.message}`);
+    return `Error generating newsletter: ${error.message}`;
   }
-  
+}
+
+async function main() {
+  // Parse command line arguments
+  let subreddits = [];
+  let postsPerSubreddit = POSTS_PER_SUBREDDIT; // Use default from constants
+  let argIndex = 2;
+
+  // Process command line flags
+  while (process.argv.length > argIndex && process.argv[argIndex].startsWith('--')) {
+    const flag = process.argv[argIndex];
+
+    if (flag === '--num-posts' && process.argv.length > argIndex + 1) {
+      const numPosts = parseInt(process.argv[argIndex + 1], 10);
+      if (isNaN(numPosts) || numPosts <= 0) {
+        console.error(`\nERROR: Invalid value for --num-posts: ${process.argv[argIndex + 1]}`);
+        console.error('The value must be a positive integer');
+        console.error('Use -h or --help for more information');
+        process.exit(1);
+      }
+      postsPerSubreddit = numPosts;
+      console.log(`Posts per subreddit set to: ${postsPerSubreddit}`);
+      argIndex += 2;
+    }
+    else if (flag === '--type') {
+      console.error(`\nERROR: Report type selection (--type) is not supported in vibe-scrape`);
+      console.error(`Use vibe-report to select report types when processing existing data\n`);
+      console.error('Use -h or --help for more information');
+      process.exit(1);
+    }
+    else {
+      console.error(`\nERROR: Unknown option: ${flag}`);
+      console.error('Use -h or --help for more information');
+      process.exit(1);
+    }
+  }
+
+  // Get subreddits from command line arguments (required)
+  if (process.argv.length > argIndex) {
+    subreddits = process.argv.slice(argIndex);
+  } else {
+    console.error('\nERROR: At least one subreddit must be specified.');
+    console.error('Usage: vibe-scrape <subreddit1> [subreddit2...]\n');
+    console.error('Use -h or --help for more information');
+    process.exit(1);
+  }
+
+  // Use the default report type for initial scraping
+  // Report type selection happens in vibe-analyze
+  const reportConfig = reports.getReportConfig(reports.DEFAULT_REPORT_TYPE);
+
   console.log(`Preparing to scrape ${subreddits.length} subreddits: r/${subreddits.join(', r/')}`);
-  
+
   // Create a run ID (YYYYMMDD_HHMM format)
   const now = new Date();
   const runId = now.toISOString()
@@ -709,22 +861,24 @@ async function main() {
     .replace(/[-:]/g, '');
 
   // Create base output directory structure for this run
-  const baseOutputDir = path.join('output', runId);
+  const baseOutputDir = path.join('data', 'raw', runId);
   fs.mkdirSync(baseOutputDir, { recursive: true });
-  
+
   // Launch the browser (shared across all subreddits)
   console.log('Launching browser...');
   const browser = await puppeteer.launch({ headless: "new" });
 
   try {
-    // Process each subreddit
+    // Process each subreddit - collect and analyze individual posts only
     for (const subreddit of subreddits) {
-      await processSubreddit(browser, subreddit, baseOutputDir);
+      await processSubreddit(browser, subreddit, baseOutputDir, postsPerSubreddit);
     }
-    
+
     console.log(`\n====================================`);
     console.log(`All subreddits processed successfully!`);
-    console.log(`Output saved to: output/${runId}/`);
+    console.log(`Raw data saved to: data/raw/${runId}/`);
+    console.log(`Use vibe-report to generate hierarchical analyses and reports:`);
+    console.log(`vibe-report ./data/raw/${runId} [--recipient Name] [--type newsletter|academic]`);
     console.log(`====================================`);
   } catch (error) {
     console.error('An error occurred during processing:', error);
@@ -734,4 +888,12 @@ async function main() {
   }
 }
 
-main();
+// Export the main function
+module.exports = {
+  main
+};
+
+// Execute main function if this is the entry point
+if (require.main === module) {
+  main();
+}

@@ -1,0 +1,99 @@
+#!/usr/bin/env node
+
+/**
+ * vibe-report - Analysis CLI for Vibe Scraping
+ *
+ * Process and analyze existing output from vibe-scrape.
+ */
+
+// Import the analyze module
+const analyze = require('../src/analyze.js');
+
+// If this script is run directly (not imported)
+if (require.main === module) {
+  // Check for help flag
+  if (process.argv.includes('-h') || process.argv.includes('--help')) {
+    console.log(`
+Vibe Scraping - Hierarchical Analysis & Report Generation
+
+DESCRIPTION:
+  This command generates reports from EXISTING data that was previously collected by vibe-scrape.
+  It creates subreddit-level analyses and combined reports by integrating individual post analyses.
+
+  vibe-scrape: Collects data and creates individual post analyses
+  vibe-report: Generates hierarchical analyses and final reports
+
+Usage: vibe-report <run_directory> [options]
+
+Options:
+  --recipient "Name"     Personalize reports with recipient name
+  --type <type>          Report type: newsletter or academic (default: newsletter - academic produces a literature review)
+  -h, --help             Show this help message
+
+Arguments:
+  run_directory          Path to an existing data/raw directory previously created by vibe-scrape (required)
+
+Examples:
+  vibe-report ./data/raw/20250508_123456
+  vibe-report ./data/raw/20250508_123456 --type academic
+  vibe-report ./data/raw/20250508_123456 --recipient "Alice"
+
+Related Commands:
+  vibe-scrape            Collect NEW data from Reddit (run before vibe-report)
+`);
+    process.exit(0);
+  }
+
+  // Check if run directory is provided
+  if (process.argv.length < 3) {
+    console.error('\nERROR: Run directory is required.');
+    console.error('Usage: vibe-report <run_directory> [--recipient "Name"] [--type newsletter|academic]\n');
+    console.error('Use -h or --help for more information');
+    process.exit(1);
+  }
+
+  // Get the run directory
+  const runDir = process.argv[2];
+  let argIndex = 3;
+  
+  // Default values
+  let recipientName = null;
+  let reportType = require('../src/reports').DEFAULT_REPORT_TYPE;
+  
+  // Process command line flags
+  while (process.argv.length > argIndex && process.argv[argIndex].startsWith('--')) {
+    const flag = process.argv[argIndex];
+    
+    if (flag === '--recipient' && process.argv.length > argIndex + 1) {
+      recipientName = process.argv[argIndex + 1];
+      console.log(`Recipient name set to: "${recipientName}"`);
+      argIndex += 2;
+    } 
+    else if (flag === '--type' && process.argv.length > argIndex + 1) {
+      const requestedType = process.argv[argIndex + 1].toLowerCase();
+      const availableTypes = require('../src/reports').getAvailableReportTypes();
+      
+      if (availableTypes.includes(requestedType)) {
+        reportType = requestedType;
+        console.log(`Report type set to: "${reportType}"`);
+      } else {
+        console.warn(`Warning: Unknown report type "${requestedType}". Using default type "${require('../src/reports').DEFAULT_REPORT_TYPE}"`);
+        console.warn(`Available types: ${availableTypes.join(', ')}`);
+      }
+      argIndex += 2;
+    }
+    else {
+      console.error(`\nERROR: Unknown or incomplete flag: ${flag}`);
+      console.error(`Usage: vibe-report <run_directory> [--recipient "Name"] [--type newsletter|academic]\n`);
+      console.error('Use -h or --help for more information');
+      process.exit(1);
+    }
+  }
+
+  if (!recipientName) {
+    console.log('No recipient name provided, using default greeting');
+  }
+
+  // Run the analysis
+  analyze.processAllAnalyses(runDir, recipientName, reportType);
+}

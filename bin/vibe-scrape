@@ -1,0 +1,45 @@
+#!/usr/bin/env node
+
+/**
+ * vibe-scrape - CLI for Vibe Scraping
+ * 
+ * A comprehensive web content analysis tool for Reddit.
+ */
+
+// Check for help flag
+if (process.argv.includes('-h') || process.argv.includes('--help')) {
+  console.log(`
+Vibe Scraping - Reddit Content Collector and Analyzer
+
+DESCRIPTION:
+  This command scrapes Reddit posts and comments, extracts content from external links,
+  and generates reports. Use this to collect NEW data from Reddit.
+  For analyzing EXISTING data, use vibe-report instead.
+
+Usage: vibe-scrape [options] <subreddit1> <subreddit2> ...
+
+IMPORTANT: All options must come BEFORE subreddit names
+
+Options:
+  --num-posts <number>   Number of posts to scrape per subreddit (default: 3)
+  -h, --help             Show this help message
+
+Arguments:
+  subreddits             One or more subreddit names (required)
+
+Examples:
+  vibe-scrape programming
+  vibe-scrape programming worldnews technology
+  vibe-scrape --num-posts 5 programming
+
+Related Commands:
+  vibe-report            Process EXISTING data/raw directories (run after vibe-scrape)
+  `);
+  process.exit(0);
+}
+
+// Import the scraper module
+const scraper = require('../src/scrape.js');
+
+// Execute the main function
+scraper.main();
